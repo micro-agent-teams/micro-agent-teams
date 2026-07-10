@@ -2,13 +2,21 @@ name: Build
 
 on:
   push:
-    branches: [ "main", "dev" ]
+    branches: [ "main" ]
+    paths:
+      - "backend/**"
   pull_request:
-    branches: [ "main", "dev" ]
+    branches: [ "main" ]
+    paths:
+      - "backend/**"
   merge_group:
   schedule:
     - cron: '0 0 * * *'
   workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: backend
 
 jobs:
   build:
@@ -23,14 +31,30 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
           cache: 'maven'
+          cache-dependency-path: backend/pom.xml
           settings-path: ${{ github.workspace }} # location for the settings.xml file
 
-      - name: Setup Services
-        run: doc/script/dependency-start.sh
+      # Postgres only: nt no longer needs Elasticsearch (the modules that used
+      # it were stripped) or the legacy NestJS service (cheese-auth is now a
+      # separate repo/service, not something this build starts).
+      - name: Start Postgres
+        run: |
+          docker run -d --name postgres \
+            -e POSTGRES_PASSWORD=postgres \
+            -p 5432:5432 \
+            --health-cmd="pg_isready" \
+            --health-interval=5s \
+            --health-timeout=5s \
+            --health-retries=10 \
+            postgres
+          for i in $(seq 1 30); do
+            docker exec postgres pg_isready && break
+            sleep 2
+          done
 
       - name: Build with Maven
         run: ./mvnw install
-      
+
       - name: Check uncommitted changes to ensure format applied
         run: |
           if [[ -n $(git status --porcelain) ]]; then
@@ -40,18 +64,15 @@ jobs:
           else
             echo "No uncommitted changes."
           fi
-      
-      - name: Test Legacy Service
-        run: sudo docker exec cheese_legacy pnpm test
 
       - name: Upload jar
         uses: actions/upload-artifact@v4
         with:
           name: jar
-          path: target/*.jar
+          path: backend/target/*.jar
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
         with:
           name: coverage
-          path: target/site/jacoco
+          path: backend/target/site/jacoco

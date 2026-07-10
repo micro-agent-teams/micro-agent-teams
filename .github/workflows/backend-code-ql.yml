@@ -9,13 +9,17 @@
 # the `language` matrix defined below to confirm you have the correct set of
 # supported CodeQL languages.
 #
-name: "CodeQL"
+name: "CodeQL (backend)"
 
 on:
   push:
-    branches: [ "main", "dev" ]
+    branches: [ "main" ]
+    paths:
+      - "backend/**"
   pull_request:
-    branches: [ "main", "dev" ]
+    branches: [ "main" ]
+    paths:
+      - "backend/**"
   merge_group:
   schedule:
     - cron: '0 0 * * *'
@@ -80,6 +84,7 @@ jobs:
       # 📚 See https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstepsrun
       - if: matrix.build-mode == 'manual'
         shell: bash
+        working-directory: backend
         run: |
           ./mvnw compile
 
