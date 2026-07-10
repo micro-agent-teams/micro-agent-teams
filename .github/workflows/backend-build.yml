@@ -32,7 +32,11 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
           cache-dependency-path: backend/pom.xml
-          settings-path: ${{ github.workspace }} # location for the settings.xml file
+          # backend/.gitignore excludes settings.xml/toolchains.xml relative to
+          # backend/ (this repo's original layout before it moved into a
+          # monorepo subdirectory) — point setup-java there too, or the
+          # spotless "uncommitted changes" check below sees them as untracked.
+          settings-path: ${{ github.workspace }}/backend
 
       # Postgres only: nt no longer needs Elasticsearch (the modules that used
       # it were stripped) or the legacy NestJS service (cheese-auth is now a
