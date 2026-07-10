@@ -1,0 +1,94 @@
+openapi: 3.0.0
+info:
+  title: micro-agent-teams backend API
+  version: "0.1"
+servers:
+  - url: "http://localhost:8080"
+paths:
+  /ping:
+    get:
+      operationId: ping
+      summary: Authenticated health check (minimal example endpoint)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+                required:
+                  - code
+                  - message
+components:
+  schemas:
+    # Kept for common/ infrastructure that isn't business-module-specific:
+    # PageHelper.kt (Page), ApproveType.kt (ApproveType), UserService.kt (User).
+    User:
+      type: object
+      required:
+        - avatarId
+        - id
+        - intro
+        - nickname
+        - username
+      properties:
+        avatarId:
+          description: avatar id
+          type: integer
+          format: int64
+        id:
+          description: user id
+          format: int64
+          minimum: 1
+          type: integer
+        intro:
+          default: This user has not set an introduction yet.
+          description: short bio
+          type: string
+        nickname:
+          description: nickname
+          type: string
+        username:
+          description: username
+          type: string
+    Page:
+      type: object
+      description: pagination info
+      required:
+        - page_start
+        - page_size
+        - has_prev
+        - has_more
+      properties:
+        page_start:
+          type: integer
+          format: int64
+          description: id of the first item on this page
+        page_size:
+          type: integer
+          description: items per page
+        has_prev:
+          type: boolean
+          description: whether a previous page exists
+        prev_start:
+          type: integer
+          format: int64
+          description: id of the first item on the previous page
+        has_more:
+          type: boolean
+          description: whether a next page exists
+        next_start:
+          type: integer
+          format: int64
+          description: id of the first item on the next page
+    ApproveType:
+      description: approve status
+      enum:
+        - APPROVED
+        - DISAPPROVED
+        - NONE
