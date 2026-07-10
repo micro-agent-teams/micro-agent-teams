@@ -1,7 +1,7 @@
 version: 2
 updates:
   - package-ecosystem: 'maven'
-    directory: '/'
+    directory: '/backend'
     schedule:
       interval: 'daily'
 
@@ -10,12 +10,12 @@ updates:
     schedule:
       interval: 'daily'
 
-  - package-ecosystem: 'docker'
-    directory: '/'
+  - package-ecosystem: 'devcontainers'
+    directory: '/backend'
     schedule:
       interval: 'daily'
 
-  - package-ecosystem: 'devcontainers'
-    directory: '/'
+  - package-ecosystem: 'npm'
+    directory: '/frontend'
     schedule:
       interval: 'daily'
