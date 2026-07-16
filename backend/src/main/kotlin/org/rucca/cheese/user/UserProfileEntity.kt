@@ -65,6 +65,7 @@ open class UserProfile {
     @SequenceGenerator(
         name = "user_profile_id_gen",
         sequenceName = "user_profile_id_seq",
+        schema = "public",
         allocationSize = 1,
     )
     @Column(name = "id", nullable = false)
