@@ -52,7 +52,12 @@ import org.springframework.data.jpa.repository.JpaRepository
 open class User {
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "user_id_gen")
-    @SequenceGenerator(name = "user_id_gen", sequenceName = "user_id_seq", allocationSize = 1)
+    @SequenceGenerator(
+        name = "user_id_gen",
+        sequenceName = "user_id_seq",
+        schema = "public",
+        allocationSize = 1,
+    )
     @Column(name = "id", nullable = false)
     open var id: Int? = null
 
