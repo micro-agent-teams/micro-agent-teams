@@ -11,7 +11,6 @@ package org.rucca.cheese.team
 
 import jakarta.persistence.*
 import java.util.Optional
-import org.hibernate.annotations.SQLRestriction
 import org.rucca.cheese.common.persistent.BaseEntity
 import org.rucca.cheese.common.persistent.IdType
 import org.springframework.data.jpa.repository.JpaRepository
@@ -22,8 +21,10 @@ enum class TeamMemberRole {
     MEMBER,
 }
 
+// No @SQLRestriction: memberships are hard-deleted (see TeamService.removeMember), so there
+// are never soft-deleted rows to filter. Soft delete would also silently break the
+// "member already exists" check in addMember.
 @Entity
-@SQLRestriction("deleted_at IS NULL")
 @Table(
     name = "team_member",
     indexes = [Index(columnList = "team_id"), Index(columnList = "user_id")],
@@ -42,4 +43,6 @@ interface TeamMemberRepository : JpaRepository<TeamMember, IdType> {
     fun findByTeamIdAndUserId(teamId: IdType, userId: IdType): Optional<TeamMember>
 
     fun findByTeamIdAndRole(teamId: IdType, role: TeamMemberRole): Optional<TeamMember>
+
+    fun deleteByTeamIdAndUserId(teamId: IdType, userId: IdType)
 }

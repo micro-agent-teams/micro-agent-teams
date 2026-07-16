@@ -69,6 +69,19 @@ class GitService {
         require(path.split('/').none { it == ".." }) { "path traversal not allowed: $path" }
     }
 
+    /**
+     * Resolves [relative] under [root] and verifies the normalised result stays inside [root]. This
+     * is the sink-side barrier: even though [requireSafePath] already rejects absolute paths and
+     * `..`, materialising a user-controlled path on the filesystem is guarded here too (and makes
+     * the containment explicit to static analysis).
+     */
+    private fun resolveInside(root: Path, relative: String): Path {
+        val base = root.toAbsolutePath().normalize()
+        val resolved = base.resolve(relative).normalize()
+        require(resolved.startsWith(base)) { "path escapes repository: $relative" }
+        return resolved
+    }
+
     // -- public API --------------------------------------------------------
 
     fun initBareRepo(teamId: Long) {
@@ -121,8 +134,8 @@ class GitService {
         return lock(teamId).useLock {
             withWorktree(teamId) { git ->
                 val dir = git.repository.workTree.toPath()
-                val source = dir.resolve(oldPath).toFile()
-                val target = dir.resolve(newPath).toFile()
+                val source = resolveInside(dir, oldPath).toFile()
+                val target = resolveInside(dir, newPath).toFile()
                 if (!source.exists()) throw NoSuchFileException(oldPath)
                 Files.createDirectories(target.parentFile.toPath())
                 source.renameTo(target)
@@ -226,7 +239,7 @@ class GitService {
         requireSafePath(filePath)
         return lock(teamId).useLock {
             withWorktree(teamId) { git ->
-                val target = git.repository.workTree.toPath().resolve(filePath)
+                val target = resolveInside(git.repository.workTree.toPath(), filePath)
                 Files.createDirectories(target.parent)
                 target.writeText(content, Charsets.UTF_8)
                 git.add().addFilepattern(filePath).call()

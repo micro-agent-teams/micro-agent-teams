@@ -18,6 +18,7 @@ import org.rucca.cheese.common.persistent.IdType
 import org.rucca.cheese.git.GitService
 import org.rucca.cheese.model.*
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 
 fun Team.toTeamDTO() =
     TeamDTO(
@@ -52,6 +53,7 @@ fun ChangeRoleRequestDTO.Role.convert(): TeamMemberRole =
     }
 
 @Service
+@Transactional
 class TeamService(
     private val teamRepository: TeamRepository,
     private val teamMemberRepository: TeamMemberRepository,
@@ -109,7 +111,6 @@ class TeamService(
         val existing = teamMemberRepository.findByTeamIdAndUserId(teamId, userId).orElse(null)
         if (existing != null) {
             existing.role = role
-            existing.deletedAt = null
             teamMemberRepository.save(existing)
         } else {
             teamMemberRepository.save(TeamMember(teamId = teamId, userId = userId, role = role))
@@ -125,13 +126,10 @@ class TeamService(
         teamMemberRepository.save(member)
     }
 
+    // Memberships are hard-deleted (like chat's ThreadMember); no soft-delete
+    // reactivation dance and thus no @SQLRestriction on TeamMember. deleteBy is idempotent.
     fun removeMember(teamId: IdType, userId: IdType) {
-        val member =
-            teamMemberRepository.findByTeamIdAndUserId(teamId, userId).orElseThrow {
-                NotFoundError("team_member", userId)
-            }
-        member.deletedAt = LocalDateTime.now()
-        teamMemberRepository.save(member)
+        teamMemberRepository.deleteByTeamIdAndUserId(teamId, userId)
     }
 
     // -- authorization helpers (wired into custom logics by TeamController) --

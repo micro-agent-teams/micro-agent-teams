@@ -189,22 +189,41 @@ constructor(private val mockMvc: MockMvc, private val userCreatorService: UserCr
 
     @Test
     @Order(52)
-    fun adminCanNowAddMembers() {
-        mockMvc
-            .perform(
-                post("/teams/$teamId/members")
-                    .header("Authorization", "Bearer $memberToken")
-                    .contentType("application/json")
-                    .content("""{"userId":${stranger.userId},"role":"MEMBER"}""")
-            )
-            .andExpect(status().isNoContent)
-        // remove the stranger again to keep the membership set tidy.
-        mockMvc
-            .perform(
-                delete("/teams/$teamId/members/${stranger.userId}")
-                    .header("Authorization", "Bearer $ownerToken")
-            )
-            .andExpect(status().isNoContent)
+    fun adminCanAddAndRemoveMembersCleanly() {
+        fun addStranger() =
+            mockMvc
+                .perform(
+                    post("/teams/$teamId/members")
+                        .header("Authorization", "Bearer $memberToken")
+                        .contentType("application/json")
+                        .content("""{"userId":${stranger.userId},"role":"MEMBER"}""")
+                )
+                .andExpect(status().isNoContent)
+        fun removeStranger() =
+            mockMvc
+                .perform(
+                    delete("/teams/$teamId/members/${stranger.userId}")
+                        .header("Authorization", "Bearer $ownerToken")
+                )
+                .andExpect(status().isNoContent)
+        fun memberCount(expected: Int) =
+            mockMvc
+                .perform(
+                    get("/teams/$teamId/members").header("Authorization", "Bearer $ownerToken")
+                )
+                .andExpect(jsonPath("$.length()").value(expected))
+
+        // admin (the promoted member) can add; owner + member + stranger = 3.
+        addStranger()
+        memberCount(3)
+        // hard delete → back to 2.
+        removeStranger()
+        memberCount(2)
+        // re-adding after a remove must be clean: 3 again, not 4 (no stale row).
+        addStranger()
+        memberCount(3)
+        removeStranger()
+        memberCount(2)
     }
 
     @Test
