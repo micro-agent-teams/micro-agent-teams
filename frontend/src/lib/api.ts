@@ -77,8 +77,25 @@ export function login(
   });
 }
 
+// The refresh token is single-use and rotates on every call: each refresh
+// consumes the current REFRESH_TOKEN cookie and sets a new one. If two refreshes
+// fire concurrently (React StrictMode double-invokes the boot effect, or a boot
+// refresh races an on-401 refresh) they both send the same cookie — one wins and
+// rotates it, the other gets "RefreshTokenAlreadyUsedError" and its response can
+// clobber the freshly-rotated cookie, killing the session on every reload.
+// De-dupe: while one refresh is in flight, everyone shares its promise.
+let inflightRefresh: Promise<{ user: User; accessToken: string }> | null = null;
+
 export function refreshToken(): Promise<{ user: User; accessToken: string }> {
-  return request("/users/auth/refresh-token", { method: "POST" });
+  if (!inflightRefresh) {
+    inflightRefresh = request<{ user: User; accessToken: string }>(
+      "/users/auth/refresh-token",
+      { method: "POST" },
+    ).finally(() => {
+      inflightRefresh = null;
+    });
+  }
+  return inflightRefresh;
 }
 
 export function logout(): Promise<void> {
