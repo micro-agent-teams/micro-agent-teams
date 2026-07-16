@@ -11,6 +11,7 @@ import {
 } from "react";
 import * as api from "@/lib/api";
 import type { User } from "@/lib/api";
+import { setNtAccessToken, setNtReauthorize } from "@/lib/ntApi";
 
 interface AuthState {
   user: User | null;
@@ -34,6 +35,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [booting, setBooting] = useState(true);
+
+  // Keep the nt API client's in-memory token in lockstep with our state, so
+  // components can just call the typed API functions without threading a token.
+  useEffect(() => {
+    setNtAccessToken(accessToken);
+  }, [accessToken]);
+
+  // On a 401 from the nt backend, silently refresh through the httpOnly cookie
+  // and hand the fresh token back for a one-shot retry.
+  useEffect(() => {
+    setNtReauthorize(async () => {
+      try {
+        const { user, accessToken } = await api.refreshToken();
+        setUser(user);
+        setAccessToken(accessToken);
+        return accessToken;
+      } catch {
+        setUser(null);
+        setAccessToken(null);
+        return null;
+      }
+    });
+  }, []);
 
   useEffect(() => {
     api

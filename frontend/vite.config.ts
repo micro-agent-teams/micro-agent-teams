@@ -32,6 +32,11 @@ export default defineConfig({
         target: process.env.AUTH_BACKEND_URL ?? "http://127.0.0.1:8091",
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ""),
+        // cheese-auth sets REFRESH_TOKEN with Path=/users/auth, but the browser
+        // sees our requests under /api/users/auth/... — the paths don't match so
+        // the cookie is never sent back on refresh and the session dies after
+        // ~15 min. Rewrite the cookie path to / so it rides every /api request.
+        cookiePathRewrite: "/",
       },
       "/nt": {
         target: process.env.NT_BACKEND_URL ?? "http://127.0.0.1:8199",
