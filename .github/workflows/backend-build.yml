@@ -38,26 +38,20 @@ jobs:
           # spotless "uncommitted changes" check below sees them as untracked.
           settings-path: ${{ github.workspace }}/backend
 
-      # Postgres only: nt no longer needs Elasticsearch (the modules that used
-      # it were stripped) or the legacy NestJS service (cheese-auth is now a
-      # separate repo/service, not something this build starts).
-      - name: Start Postgres
-        run: |
-          docker run -d --name postgres \
-            -e POSTGRES_PASSWORD=postgres \
-            -p 5432:5432 \
-            --health-cmd="pg_isready" \
-            --health-interval=5s \
-            --health-timeout=5s \
-            --health-retries=10 \
-            postgres
-          for i in $(seq 1 30); do
-            docker exec postgres pg_isready && break
-            sleep 2
-          done
+      # Our tests are integration tests: they need a real Postgres (with the "mat"
+      # schema) and the real cheese-auth service (users are created + logged in
+      # through it). One script brings both up, mirroring the local setup.
+      - name: Start dependencies (Postgres + cheese-auth)
+        run: ./scripts/dependency-start.sh
 
+      # application.properties already matches the services the script starts
+      # (localhost:5432/postgres, jwt-secret=test-secret, legacy-url=:8091). Only
+      # override what differs in CI: create the schema on first run, and keep the
+      # git document repos in the runner's temp dir.
       - name: Build with Maven
         run: ./mvnw install
+        env:
+          SPRING_APPLICATION_JSON: '{"spring.jpa.hibernate.ddl-auto":"update","application.git-repo-base":"${{ runner.temp }}/mat-git"}'
 
       - name: Check uncommitted changes to ensure format applied
         run: |
