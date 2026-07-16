@@ -78,7 +78,9 @@ class GitService {
     private fun resolveInside(root: Path, relative: String): Path {
         val base = root.toAbsolutePath().normalize()
         val resolved = base.resolve(relative).normalize()
-        require(resolved.startsWith(base)) { "path escapes repository: $relative" }
+        if (!resolved.startsWith(base)) {
+            throw IllegalArgumentException("path escapes repository: $relative")
+        }
         return resolved
     }
 
