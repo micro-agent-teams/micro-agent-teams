@@ -19,11 +19,13 @@ import org.rucca.cheese.api.TeamApi
 import org.rucca.cheese.auth.AuthenticationService
 import org.rucca.cheese.auth.AuthorizationService
 import org.rucca.cheese.auth.AuthorizedAction
+import org.rucca.cheese.auth.annotation.AuthInfo
 import org.rucca.cheese.auth.annotation.Guard
 import org.rucca.cheese.auth.annotation.ResourceId
 import org.rucca.cheese.common.error.BadRequestError
 import org.rucca.cheese.common.persistent.IdGetter
 import org.rucca.cheese.common.persistent.IdType
+import org.rucca.cheese.machine.enrollment.MachineService
 import org.rucca.cheese.model.*
 import org.rucca.cheese.team.documents.DocumentService
 import org.rucca.cheese.team.membership.*
@@ -35,13 +37,14 @@ import org.springframework.web.bind.annotation.*
 class TeamController(
     private val teamService: TeamService,
     private val documentService: DocumentService,
+    private val machineService: MachineService,
     private val authorizationService: AuthorizationService,
     private val authenticationService: AuthenticationService,
 ) : TeamApi {
     @PostConstruct
     fun initialize() {
         authorizationService.ownerIds.register("team", teamService::getTeamOwner)
-        authorizationService.customAuthLogics.register("is_team_member") {
+        authorizationService.customAuthLogics.register("is-team-member") {
             userId: IdType,
             _: AuthorizedAction,
             _: String,
@@ -51,7 +54,7 @@ class TeamController(
             _: Any? ->
             resourceId != null && teamService.isTeamMember(resourceId, userId)
         }
-        authorizationService.customAuthLogics.register("is_team_admin") {
+        authorizationService.customAuthLogics.register("is-team-admin") {
             userId: IdType,
             _: AuthorizedAction,
             _: String,
@@ -65,7 +68,7 @@ class TeamController(
 
     private fun currentUserId(): IdType = authenticationService.getCurrentUserId()
 
-    @Guard("create", "team")
+    @Guard("create-team", "team")
     override fun createTeam(
         @Valid @RequestBody(required = false) dto: CreateTeamRequestDTO?
     ): ResponseEntity<TeamDTO> {
@@ -74,7 +77,7 @@ class TeamController(
             .body(teamService.createTeam(name, currentUserId()))
     }
 
-    @Guard("enumerate", "team")
+    @Guard("enumerate-my-teams", "team")
     override fun listTeams(
         role: String?,
         pageStart: Long?,
@@ -90,12 +93,12 @@ class TeamController(
         return ResponseEntity.ok(ListTeamsResponseDTO(teams = teams, page = page))
     }
 
-    @Guard("read", "team")
+    @Guard("query-team", "team")
     override fun getTeam(
         @PathVariable("id") @ResourceId id: IdType
     ): ResponseEntity<TeamDetailDTO> = ResponseEntity.ok(teamService.getTeamDetail(id))
 
-    @Guard("update", "team")
+    @Guard("rename-team", "team")
     override fun renameTeam(
         @PathVariable("id") @ResourceId id: IdType,
         @Valid @RequestBody(required = false) dto: RenameTeamRequestDTO?,
@@ -104,18 +107,18 @@ class TeamController(
         return ResponseEntity.ok(teamService.renameTeam(id, name))
     }
 
-    @Guard("delete", "team")
+    @Guard("delete-team", "team")
     override fun deleteTeam(@PathVariable("id") @ResourceId id: IdType): ResponseEntity<Unit> {
         teamService.deleteTeam(id)
         return ResponseEntity(HttpStatus.NO_CONTENT)
     }
 
-    @Guard("read", "team")
+    @Guard("enumerate-team-members", "team")
     override fun listTeamMembers(
         @PathVariable("id") @ResourceId id: IdType
     ): ResponseEntity<List<TeamMemberDTO>> = ResponseEntity.ok(teamService.listMembers(id))
 
-    @Guard("update", "team")
+    @Guard("add-team-member", "team")
     override fun addTeamMember(
         @PathVariable("id") @ResourceId id: IdType,
         @Valid @RequestBody(required = false) dto: AddTeamMemberRequestDTO?,
@@ -125,7 +128,7 @@ class TeamController(
         return ResponseEntity(HttpStatus.NO_CONTENT)
     }
 
-    @Guard("update", "team")
+    @Guard("change-team-member-role", "team")
     override fun changeMemberRole(
         @PathVariable("id") @ResourceId id: IdType,
         @PathVariable("userId") userId: IdType,
@@ -136,12 +139,32 @@ class TeamController(
         return ResponseEntity(HttpStatus.NO_CONTENT)
     }
 
-    @Guard("update", "team")
+    @Guard("remove-team-member", "team")
     override fun removeTeamMember(
         @PathVariable("id") @ResourceId id: IdType,
         @PathVariable("userId") userId: IdType,
     ): ResponseEntity<Unit> {
         teamService.removeMember(id, userId)
+        return ResponseEntity(HttpStatus.NO_CONTENT)
+    }
+
+    // -- Machines (which machines this team owns; enumerate via GET /machine?teamId=) ----
+
+    @Guard("bind-machine-to-team", "team")
+    override fun bindTeamMachine(
+        @PathVariable("id") @ResourceId id: IdType,
+        @AuthInfo("bind") bindMachineRequestDTO: BindMachineRequestDTO,
+    ): ResponseEntity<Unit> {
+        machineService.bindToTeam(bindMachineRequestDTO.machineId, id)
+        return ResponseEntity(HttpStatus.NO_CONTENT)
+    }
+
+    @Guard("unbind-machine-from-team", "team")
+    override fun unbindTeamMachine(
+        @PathVariable("id") @ResourceId id: IdType,
+        @PathVariable("machineId") @AuthInfo("machineId") machineId: String,
+    ): ResponseEntity<Unit> {
+        machineService.unbindFromTeam(machineId, id)
         return ResponseEntity(HttpStatus.NO_CONTENT)
     }
 
@@ -158,7 +181,7 @@ class TeamController(
         if (path.isBlank()) throw BadRequestError("path is required")
     }
 
-    @Guard("read", "team_document")
+    @Guard("read-document", "team_document")
     override fun getDocument(
         @PathVariable("id") @ResourceId id: IdType,
         path: String,
@@ -173,7 +196,7 @@ class TeamController(
         )
     }
 
-    @Guard("create", "team_document")
+    @Guard("write-document", "team_document")
     override fun writeDocument(
         @PathVariable("id") @ResourceId id: IdType,
         path: String,
@@ -186,7 +209,7 @@ class TeamController(
         )
     }
 
-    @Guard("update", "team_document")
+    @Guard("move-document", "team_document")
     override fun moveDocument(
         @PathVariable("id") @ResourceId id: IdType,
         path: String,
@@ -201,7 +224,7 @@ class TeamController(
         )
     }
 
-    @Guard("delete", "team_document")
+    @Guard("delete-document", "team_document")
     override fun deleteDocument(
         @PathVariable("id") @ResourceId id: IdType,
         path: String,

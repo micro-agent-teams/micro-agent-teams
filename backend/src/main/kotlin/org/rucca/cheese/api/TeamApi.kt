@@ -13,6 +13,7 @@ import javax.validation.Valid
 import javax.validation.constraints.NotNull
 import kotlin.collections.List
 import org.rucca.cheese.model.AddTeamMemberRequestDTO
+import org.rucca.cheese.model.BindMachineRequestDTO
 import org.rucca.cheese.model.ChangeRoleRequestDTO
 import org.rucca.cheese.model.CreateTeamRequestDTO
 import org.rucca.cheese.model.DocNodeDTO
@@ -49,6 +50,28 @@ interface TeamApi {
         @Valid
         @RequestBody(required = false)
         addTeamMemberRequestDTO: AddTeamMemberRequestDTO?,
+    ): ResponseEntity<Unit> {
+        return ResponseEntity(HttpStatus.NOT_IMPLEMENTED)
+    }
+
+    @Operation(
+        tags = ["team"],
+        summary = "Associate a machine with this team. The model is symmetric and owner-less.",
+        operationId = "bindTeamMachine",
+        description = """""",
+        responses = [ApiResponse(responseCode = "204", description = "Bound")],
+    )
+    @RequestMapping(
+        method = [RequestMethod.POST],
+        value = ["/team/{id}/machine"],
+        consumes = ["application/json"],
+    )
+    fun bindTeamMachine(
+        @Parameter(description = "", required = true) @PathVariable("id") id: kotlin.Long,
+        @Parameter(description = "", required = true)
+        @Valid
+        @RequestBody
+        bindMachineRequestDTO: BindMachineRequestDTO,
     ): ResponseEntity<Unit> {
         return ResponseEntity(HttpStatus.NOT_IMPLEMENTED)
     }
@@ -359,6 +382,23 @@ interface TeamApi {
         @RequestBody(required = false)
         renameTeamRequestDTO: RenameTeamRequestDTO?,
     ): ResponseEntity<TeamDTO> {
+        return ResponseEntity(HttpStatus.NOT_IMPLEMENTED)
+    }
+
+    @Operation(
+        tags = ["team"],
+        summary = "Disassociate a machine from this team",
+        operationId = "unbindTeamMachine",
+        description = """""",
+        responses = [ApiResponse(responseCode = "204", description = "Unbound")],
+    )
+    @RequestMapping(method = [RequestMethod.DELETE], value = ["/team/{id}/machine/{machineId}"])
+    fun unbindTeamMachine(
+        @Parameter(description = "", required = true) @PathVariable("id") id: kotlin.Long,
+        @Parameter(description = "", required = true)
+        @PathVariable("machineId")
+        machineId: kotlin.String,
+    ): ResponseEntity<Unit> {
         return ResponseEntity(HttpStatus.NOT_IMPLEMENTED)
     }
 

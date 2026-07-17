@@ -24,6 +24,8 @@ fun Team.toTeamDTO() =
     TeamDTO(
         id = this.id!!,
         name = this.name!!,
+        // Nullable: @CreationTimestamp only populates on flush, so a just-saved (not-yet-flushed)
+        // Team has a null createdAt in memory. The DTO field is optional for exactly this reason.
         createdAt = this.createdAt?.atOffset(ZoneOffset.UTC),
         updatedAt = this.updatedAt?.atOffset(ZoneOffset.UTC),
     )

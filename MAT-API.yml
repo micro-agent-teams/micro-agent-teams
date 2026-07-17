@@ -466,6 +466,50 @@ paths:
 
   # -- Documents (a team's git tree; no document table) ---------------------
 
+  # -- A team's machines (ownership binding only; enumerate via GET /machine?teamId=) --
+
+  /team/{id}/machine:
+    post:
+      tags: [team]
+      operationId: bindTeamMachine
+      summary: Associate a machine with this team. The model is symmetric and owner-less.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BindMachineRequest"
+      responses:
+        "204":
+          description: Bound
+  /team/{id}/machine/{machineId}:
+    delete:
+      tags: [team]
+      operationId: unbindTeamMachine
+      summary: Disassociate a machine from this team
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: machineId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Unbound
+
   /team/{id}/document:
     get:
       tags: [team]
@@ -589,6 +633,262 @@ paths:
       responses:
         "204":
           description: Deleted
+
+  # -- Machines (an enrolled host running our CLI; knows nothing of agents) --------
+  # One enumeration API + composable filters -- never one endpoint per query shape.
+
+  /machine:
+    get:
+      tags: [machine]
+      operationId: listMachines
+      summary: >
+        Machines visible to the caller, narrowed by any combination of the filters below.
+        Adding a way to slice machines means adding a filter here, never a new endpoint.
+      parameters:
+        - name: teamId
+          in: query
+          description: Only machines associated with this team
+          schema:
+            type: integer
+            format: int64
+        - name: online
+          in: query
+          description: Only machines whose control channel is (dis)connected right now
+          schema:
+            type: boolean
+        - name: page_start
+          in: query
+          schema:
+            type: string
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListMachinesResponse"
+  /machine/{id}:
+    get:
+      tags: [machine]
+      operationId: getMachine
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Machine"
+    patch:
+      tags: [machine]
+      operationId: renameMachine
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RenameMachineRequest"
+      responses:
+        "200":
+          description: Renamed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Machine"
+    delete:
+      tags: [machine]
+      operationId: forgetMachine
+      summary: Forget the machine entirely (revokes its token; it must re-enroll)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Forgotten
+  /machine/enroll/start:
+    post:
+      tags: [machine]
+      operationId: startEnrollment
+      summary: Public. A machine with no token mints a pending code for a human to approve.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartEnrollmentRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StartEnrollmentResponse"
+  /machine/enroll/poll:
+    post:
+      tags: [machine]
+      operationId: pollEnrollment
+      summary: Public. The machine polls until a human approves, then receives its token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PollEnrollmentRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PollEnrollmentResponse"
+  /machine/enroll/approve:
+    post:
+      tags: [machine]
+      operationId: approveEnrollment
+      summary: A logged-in human approves a pending code and picks the teams it serves.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApproveEnrollmentRequest"
+      responses:
+        "200":
+          description: Approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Machine"
+
+  # -- Agents (one application that runs on a machine) -----------------------------
+
+  /agent:
+    get:
+      tags: [agent]
+      operationId: listAgents
+      summary: >
+        Agents visible to the caller, narrowed by any combination of the filters below --
+        this is the only agent enumeration (avatar presence is userId=..., a group's agents
+        is threadId=...). `sid` is present only when the caller may watch the live screen.
+      parameters:
+        - name: userId
+          in: query
+          description: Only these agent users. Non-agents simply do not come back.
+          schema:
+            type: array
+            items:
+              type: integer
+              format: int64
+          style: form
+          explode: false
+        - name: threadId
+          in: query
+          description: Only agents that are members of this chat thread
+          schema:
+            type: integer
+            format: int64
+        - name: teamId
+          in: query
+          schema:
+            type: integer
+            format: int64
+        - name: machineId
+          in: query
+          schema:
+            type: string
+        - name: online
+          in: query
+          schema:
+            type: boolean
+        - name: page_start
+          in: query
+          schema:
+            type: integer
+            format: int64
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListAgentsResponse"
+    post:
+      tags: [agent]
+      operationId: openAgent
+      summary: Open an agent (a fresh agent user + its driven screen) on a machine
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OpenAgentRequest"
+      responses:
+        "201":
+          description: Opened
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenedAgent"
+  /agent/{userId}:
+    delete:
+      tags: [agent]
+      operationId: closeAgent
+      summary: Close an agent and its screen
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "204":
+          description: Closed
+  /agent/note:
+    post:
+      tags: [agent]
+      operationId: postNote
+      summary: >
+        The agent tool-door. A screen's CLI runs `mat api post-note`, authenticated by its
+        machine token plus the per-screen token, and the note lands in chat as the agent.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostNoteRequest"
+      responses:
+        "200":
+          description: Posted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
 
 components:
   schemas:
@@ -802,6 +1102,15 @@ components:
         joinedAt:
           type: string
           format: date-time
+        nickname:
+          description: >
+            The member's display name, carried here so a thread view can paint its members
+            without a second lookup (ChatMember carries the same for the chat list).
+          type: string
+        avatarId:
+          description: The member's avatar; absent if they have none.
+          type: integer
+          format: int64
 
     Message:
       type: object
@@ -901,6 +1210,7 @@ components:
 
     Team:
       type: object
+      required: [id, name]
       properties:
         id:
           type: integer
@@ -916,6 +1226,7 @@ components:
 
     TeamDetail:
       type: object
+      required: [team, members]
       properties:
         team:
           $ref: "#/components/schemas/Team"
@@ -926,6 +1237,7 @@ components:
 
     TeamMember:
       type: object
+      required: [userId, role]
       properties:
         userId:
           type: integer
@@ -1020,3 +1332,190 @@ components:
       properties:
         newPath:
           type: string
+
+    # -- Machines -----------------------------------------------------------
+
+    ListMachinesResponse:
+      type: object
+      required: [machines, page]
+      properties:
+        machines:
+          type: array
+          items:
+            $ref: "#/components/schemas/Machine"
+        page:
+          $ref: "#/components/schemas/Page"
+
+    Machine:
+      type: object
+      description: An enrolled host running our CLI. It hosts screens; it knows nothing of agents.
+      required: [id, name, online, teamIds]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        online:
+          type: boolean
+          description: Whether its control channel is connected right now
+        teamIds:
+          type: array
+          description: The teams it serves. Symmetric and owner-less -- a machine may serve many.
+          items:
+            type: integer
+            format: int64
+        createdAt:
+          type: string
+          format: date-time
+
+    RenameMachineRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+
+    BindMachineRequest:
+      type: object
+      required: [machineId]
+      properties:
+        machineId:
+          type: string
+
+    StartEnrollmentRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: The machine's self-reported hostname
+
+    StartEnrollmentResponse:
+      type: object
+      required: [code, approveUrl]
+      properties:
+        code:
+          type: string
+        approveUrl:
+          type: string
+
+    PollEnrollmentRequest:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: string
+
+    PollEnrollmentResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          description: pending | approved
+        machineId:
+          type: string
+        token:
+          type: string
+          description: The durable machine token, returned once on approval
+
+    ApproveEnrollmentRequest:
+      type: object
+      required: [code, teamIds]
+      properties:
+        code:
+          type: string
+        teamIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+
+    # -- Agents -------------------------------------------------------------
+
+    ListAgentsResponse:
+      type: object
+      required: [agents, page]
+      properties:
+        agents:
+          type: array
+          items:
+            $ref: "#/components/schemas/Agent"
+        page:
+          $ref: "#/components/schemas/Page"
+
+    Agent:
+      type: object
+      description: >
+        An agent is a user that software drives. It is not necessarily backed by a screen --
+        machineId/sid are absent for one that is not, or that is not live right now.
+      required: [userId, nickname, online]
+      properties:
+        userId:
+          type: integer
+          format: int64
+        nickname:
+          type: string
+        avatarId:
+          type: integer
+          format: int64
+        online:
+          type: boolean
+        machineId:
+          type: string
+        sid:
+          type: string
+          description: The live screen id -- present only if the caller may watch it
+        teamId:
+          type: integer
+          format: int64
+        driver:
+          type: string
+          description: Which driver runs it (claude, codex, ...)
+        vars:
+          type: object
+          description: >
+            Whatever the driver mirrors up about the live screen (e.g. elapsed, tokens).
+            Opaque to the machine layer; the UI reads what it recognises.
+          additionalProperties: true
+
+    OpenAgentRequest:
+      type: object
+      required: [machineId, teamId]
+      properties:
+        machineId:
+          type: string
+        teamId:
+          type: integer
+          format: int64
+        nickname:
+          type: string
+        cwd:
+          type: string
+        driver:
+          type: string
+          description: Defaults to the server's default driver (claude)
+
+    OpenedAgent:
+      type: object
+      required: [agentUserId, sid, machineId, screenToken]
+      properties:
+        agentUserId:
+          type: integer
+          format: int64
+        sid:
+          type: string
+        machineId:
+          type: string
+        screenToken:
+          type: string
+
+    PostNoteRequest:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+        thread_id:
+          type: integer
+          format: int64
+          description: Defaults to the thread the agent was last spoken to in

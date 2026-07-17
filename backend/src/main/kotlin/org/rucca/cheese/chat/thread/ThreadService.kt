@@ -18,6 +18,7 @@ import org.rucca.cheese.chat.message.MessageRepository
 import org.rucca.cheese.common.error.NotFoundError
 import org.rucca.cheese.common.helper.PageHelper
 import org.rucca.cheese.model.*
+import org.rucca.cheese.user.UserProfile
 import org.rucca.cheese.user.UserProfileRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -109,10 +110,7 @@ class ThreadService(
     fun getThread(threadId: Long): ThreadDetailDTO {
         val t =
             threadRepository.findById(threadId).orElseThrow { NotFoundError("thread", threadId) }
-        return ThreadDetailDTO(
-            thread = t.toDTO(),
-            members = threadMemberRepository.findByThreadId(threadId).map { it.toDTO() },
-        )
+        return ThreadDetailDTO(thread = t.toDTO(), members = listMembers(threadId))
     }
 
     fun renameThread(threadId: Long, body: RenameThreadRequestDTO): ThreadDTO {
@@ -131,7 +129,10 @@ class ThreadService(
     }
 
     fun listMembers(threadId: Long): List<ThreadMemberDTO> =
-        threadMemberRepository.findByThreadId(threadId).map { it.toDTO() }
+        threadMemberRepository.findByThreadId(threadId).map { it.toDTO(profileOf(it.userId!!)) }
+
+    private fun profileOf(userId: Long): UserProfile? =
+        userProfileRepository.findByUserId(userId.toInt()).orElse(null)
 
     fun addMember(threadId: Long, userId: Long, role: ThreadMemberRole) {
         val existing = threadMemberRepository.findByThreadIdAndUserId(threadId, userId)
@@ -170,11 +171,17 @@ fun ThreadEntity.toDTO() =
         updatedAt = updatedAt?.atOffset(ZoneOffset.UTC),
     )
 
-fun ThreadMemberEntity.toDTO() =
+/**
+ * [profile] is the member's, looked up by the caller: the DTO carries the nickname and avatar so a
+ * thread view can paint its members without a second round-trip per user.
+ */
+fun ThreadMemberEntity.toDTO(profile: UserProfile?) =
     ThreadMemberDTO(
         id = id!!,
         threadId = threadId!!,
         userId = userId!!,
         role = role.toDTO(),
         joinedAt = createdAt?.atOffset(ZoneOffset.UTC) ?: OffsetDateTime.now(),
+        nickname = profile?.nickname ?: "user${userId!!}",
+        avatarId = profile?.avatar?.id?.toLong(),
     )

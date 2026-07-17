@@ -151,10 +151,17 @@
             <artifactId>jersey-media-json-jackson</artifactId>
             <version>3.1.10</version>
         </dependency>
+        <!--
+          Pinned to 3.1.10 to match jersey-client / jersey-hk2 / jersey-media-json-jackson above.
+          A dependabot bump to 4.0.2 dragged in jersey-common 4.x, whose
+          org.glassfish.jersey.innate.spi.MessageBodyWorkersSettable does not exist in the 3.1.10
+          client — every request then died with NoClassDefFoundError. Keep all Jersey artifacts on
+          one version.
+        -->
         <dependency>
             <groupId>org.glassfish.jersey.media</groupId>
             <artifactId>jersey-media-multipart</artifactId>
-            <version>4.0.2</version>
+            <version>3.1.10</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -219,7 +226,22 @@
                     <compilerPlugins>
                         <plugin>spring</plugin>
                         <plugin>jpa</plugin>
+                        <plugin>all-open</plugin>
                     </compilerPlugins>
+                    <!--
+                      `spring` opens @Component/@Transactional classes and `jpa` only adds a no-arg
+                      constructor to @Entity classes — NEITHER opens @Entity/@MappedSuperclass. A
+                      Kotlin class and its `val` getters are final by default, so an entity reached
+                      through a lazy to-one (User/Avatar via UserProfile) cannot be given the
+                      runtime proxy subclass Hibernate needs, and the SessionFactory fails to build
+                      with "Getter methods of lazy classes cannot be final". Opening the JPA
+                      annotations here is what actually makes entities proxyable.
+                    -->
+                    <pluginOptions>
+                        <option>all-open:annotation=jakarta.persistence.Entity</option>
+                        <option>all-open:annotation=jakarta.persistence.MappedSuperclass</option>
+                        <option>all-open:annotation=jakarta.persistence.Embeddable</option>
+                    </pluginOptions>
                 </configuration>
                 <dependencies>
                     <dependency>

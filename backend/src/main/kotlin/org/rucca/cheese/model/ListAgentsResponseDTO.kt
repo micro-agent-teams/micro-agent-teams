@@ -5,16 +5,16 @@ import io.swagger.v3.oas.annotations.media.Schema
 import javax.validation.Valid
 
 /**
- * @param team
- * @param members
+ * @param agents
+ * @param page
  */
-data class TeamDetailDTO(
+data class ListAgentsResponseDTO(
     @field:Valid
     @Schema(example = "null", required = true, description = "")
-    @get:JsonProperty("team", required = true)
-    val team: TeamDTO,
+    @get:JsonProperty("agents", required = true)
+    val agents: kotlin.collections.List<AgentDTO>,
     @field:Valid
     @Schema(example = "null", required = true, description = "")
-    @get:JsonProperty("members", required = true)
-    val members: kotlin.collections.List<TeamMemberDTO>,
+    @get:JsonProperty("page", required = true)
+    val page: PageDTO,
 ) {}

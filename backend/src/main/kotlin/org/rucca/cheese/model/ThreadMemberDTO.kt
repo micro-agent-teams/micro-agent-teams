@@ -13,6 +13,9 @@ import io.swagger.v3.oas.annotations.media.Schema
  * @param userId
  * @param role 0=MEMBER, 1=ADMIN, 2=OWNER
  * @param joinedAt
+ * @param nickname The member's display name, carried here so a thread view can paint its members
+ *   without a second lookup (ChatMember carries the same for the chat list).
+ * @param avatarId The member's avatar; absent if they have none.
  */
 data class ThreadMemberDTO(
     @Schema(example = "null", required = true, description = "")
@@ -30,6 +33,16 @@ data class ThreadMemberDTO(
     @Schema(example = "null", required = true, description = "")
     @get:JsonProperty("joinedAt", required = true)
     val joinedAt: java.time.OffsetDateTime,
+    @Schema(
+        example = "null",
+        description =
+            "The member's display name, carried here so a thread view can paint its members without a second lookup (ChatMember carries the same for the chat list). ",
+    )
+    @get:JsonProperty("nickname")
+    val nickname: kotlin.String? = null,
+    @Schema(example = "null", description = "The member's avatar; absent if they have none.")
+    @get:JsonProperty("avatarId")
+    val avatarId: kotlin.Long? = null,
 ) {
 
     /** 0=MEMBER, 1=ADMIN, 2=OWNER Values: MEMBER,ADMIN,OWNER */

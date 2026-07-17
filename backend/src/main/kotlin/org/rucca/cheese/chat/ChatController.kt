@@ -43,21 +43,21 @@ class ChatController(
     fun initialize() {
         // Register the thread-ownership resolver so the built-in "owned" custom logic
         // (AuthorizationService.kt:45) can answer "does user X own resource thread Y?"
-        // without an is_thread_owner handler. Must match the resourceType used by @Guard /
+        // without an is-thread-owner handler. Must match the resourceType used by @Guard /
         // RolePermissionService ("chat_thread"); otherwise "owned" can't resolve an owner.
         authorizationService.ownerIds.register("chat_thread") { threadId ->
             threadMemberRepository.findByThreadIdAndRole(threadId, ThreadMemberRole.OWNER)?.userId
                 ?: 0
         }
 
-        // is_thread_member: user is any member (member/admin/owner) of a thread. Every
+        // is-thread-member: user is any member (member/admin/owner) of a thread. Every
         // @Guard that uses this passes the THREAD id as the resource id (postMessage /
         // listMessages / getThread all bind @ResourceId to the thread path param), so the
         // resource id is the thread id directly — never a message id (that is
-        // is_message_author's job). We must NOT reinterpret it as a message id: message and
+        // is-message-author's job). We must NOT reinterpret it as a message id: message and
         // thread ids come from independent sequences and collide, so a thread id that also
         // exists as a message id would resolve to the wrong thread and wrongly 403 a member.
-        authorizationService.customAuthLogics.register("is_thread_member") {
+        authorizationService.customAuthLogics.register("is-thread-member") {
             userId: IdType,
             _: AuthorizedAction,
             _: String,
@@ -69,9 +69,9 @@ class ChatController(
                 threadMemberRepository.findByThreadIdAndUserId(resourceId, userId) != null
         }
 
-        // is_thread_admin: user is admin or owner of a thread (role >= 1). Resource id is the
-        // thread id directly (see is_thread_member above for why we don't remap it).
-        authorizationService.customAuthLogics.register("is_thread_admin") {
+        // is-thread-admin: user is admin or owner of a thread (role >= 1). Resource id is the
+        // thread id directly (see is-thread-member above for why we don't remap it).
+        authorizationService.customAuthLogics.register("is-thread-admin") {
             userId: IdType,
             _: AuthorizedAction,
             _: String,
@@ -87,7 +87,7 @@ class ChatController(
         }
 
         // is_message_author: user wrote the message (resourceId = message id).
-        authorizationService.customAuthLogics.register("is_message_author") {
+        authorizationService.customAuthLogics.register("is-message-author") {
             userId: IdType,
             _: AuthorizedAction,
             _: String,
@@ -100,14 +100,14 @@ class ChatController(
         }
     }
 
-    @Guard("enumerate", "chat_thread")
+    @Guard("enumerate-my-chats", "chat_thread")
     override fun listChats(pageStart: Long?, pageSize: Int): ResponseEntity<ListChatsResponseDTO> {
         val userId = authenticationService.getCurrentUserId()
         val (chats, page) = threadService.listChats(userId, pageStart, pageSize)
         return ResponseEntity.ok(ListChatsResponseDTO(chats = chats, page = page))
     }
 
-    @Guard("create", "chat_thread")
+    @Guard("create-chat", "chat_thread")
     override fun createThread(
         createThreadRequestDTO: CreateThreadRequestDTO?
     ): ResponseEntity<ThreadDTO> {
@@ -116,24 +116,24 @@ class ChatController(
         return ResponseEntity(threadService.createThread(userId, body), HttpStatus.CREATED)
     }
 
-    @Guard("read", "chat_thread")
+    @Guard("query-chat", "chat_thread")
     override fun getThread(
         @PathVariable("id") @ResourceId id: Long
     ): ResponseEntity<ThreadDetailDTO> = ResponseEntity.ok(threadService.getThread(id))
 
-    @Guard("update", "chat_thread")
+    @Guard("rename-chat", "chat_thread")
     override fun renameThread(
         @PathVariable("id") @ResourceId id: Long,
         dto: RenameThreadRequestDTO?,
     ): ResponseEntity<ThreadDTO> = ResponseEntity.ok(threadService.renameThread(id, dto!!))
 
-    @Guard("delete", "chat_thread")
+    @Guard("dissolve-chat", "chat_thread")
     override fun dissolveThread(@PathVariable("id") @ResourceId id: Long): ResponseEntity<Unit> {
         threadService.dissolveThread(id)
         return ResponseEntity(HttpStatus.NO_CONTENT)
     }
 
-    @Guard("read", "chat_message")
+    @Guard("enumerate-messages", "chat_message")
     override fun listMessages(
         @PathVariable("id") @ResourceId id: Long,
         pageStart: Long?,
@@ -143,7 +143,7 @@ class ChatController(
         return ResponseEntity.ok(ListMessagesResponseDTO(messages = messages, page = page))
     }
 
-    @Guard("create", "chat_message")
+    @Guard("post-message", "chat_message")
     override fun postMessage(
         @PathVariable("id") @ResourceId id: Long,
         dto: PostMessageRequestDTO?,
@@ -152,12 +152,12 @@ class ChatController(
         return ResponseEntity(messageService.postMessage(id, userId, dto!!), HttpStatus.CREATED)
     }
 
-    @Guard("read", "chat_thread")
+    @Guard("enumerate-chat-members", "chat_thread")
     override fun listThreadMembers(
         @PathVariable("id") @ResourceId id: Long
     ): ResponseEntity<List<ThreadMemberDTO>> = ResponseEntity.ok(threadService.listMembers(id))
 
-    @Guard("update", "chat_thread")
+    @Guard("add-chat-member", "chat_thread")
     override fun addThreadMember(
         @PathVariable("id") @ResourceId id: Long,
         dto: AddMemberRequestDTO?,
@@ -167,7 +167,7 @@ class ChatController(
         return ResponseEntity(HttpStatus.NO_CONTENT)
     }
 
-    @Guard("update", "chat_thread")
+    @Guard("remove-chat-member", "chat_thread")
     override fun removeThreadMember(
         @PathVariable("id") @ResourceId id: Long,
         @PathVariable("userId") userId: Long,
@@ -176,7 +176,7 @@ class ChatController(
         return ResponseEntity(HttpStatus.NO_CONTENT)
     }
 
-    @Guard("update", "chat_thread")
+    @Guard("change-chat-member-role", "chat_thread")
     override fun changeThreadMemberRole(
         @PathVariable("id") @ResourceId id: Long,
         @PathVariable("userId") userId: Long,
