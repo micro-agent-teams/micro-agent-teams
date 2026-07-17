@@ -7,7 +7,7 @@
  *      Nictheboy Li    <nictheboy@outlook.com>
  */
 
-package org.rucca.cheese.git
+package org.rucca.cheese.team.documents
 
 import java.nio.file.Files
 import java.nio.file.Paths

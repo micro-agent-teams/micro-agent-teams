@@ -1,4 +1,4 @@
-package org.rucca.cheese.chat
+package org.rucca.cheese.chat.message
 
 import jakarta.persistence.*
 import java.time.LocalDateTime
@@ -20,4 +20,7 @@ open class MessageEntity : BaseEntity() {
 
 interface MessageRepository : JpaRepository<MessageEntity, Long> {
     fun findByThreadIdAndDeletedAtIsNullOrderById(threadId: Long): List<MessageEntity>
+
+    /** The most recent (highest-id) live message in a thread — for the chat-list preview. */
+    fun findTopByThreadIdAndDeletedAtIsNullOrderByIdDesc(threadId: Long): MessageEntity?
 }

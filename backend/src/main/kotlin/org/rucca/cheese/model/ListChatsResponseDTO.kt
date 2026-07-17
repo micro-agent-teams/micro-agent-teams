@@ -5,14 +5,14 @@ import io.swagger.v3.oas.annotations.media.Schema
 import javax.validation.Valid
 
 /**
- * @param threads
+ * @param chats
  * @param page
  */
-data class ListThreadsResponseDTO(
+data class ListChatsResponseDTO(
     @field:Valid
     @Schema(example = "null", required = true, description = "")
-    @get:JsonProperty("threads", required = true)
-    val threads: kotlin.collections.List<ThreadDTO>,
+    @get:JsonProperty("chats", required = true)
+    val chats: kotlin.collections.List<ChatSummaryDTO>,
     @field:Valid
     @Schema(example = "null", required = true, description = "")
     @get:JsonProperty("page", required = true)

@@ -7,7 +7,7 @@
  *
  */
 
-package org.rucca.cheese.team
+package org.rucca.cheese.team.membership
 
 import jakarta.persistence.*
 import java.util.Optional

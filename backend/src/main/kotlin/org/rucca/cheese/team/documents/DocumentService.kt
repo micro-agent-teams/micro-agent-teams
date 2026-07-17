@@ -1,49 +1,36 @@
 /*
  *  Description: This file implements the DocumentService class. Documents live in
  *               each team's git repository (no database table); this service shapes
- *               the flat git tree into a nested Document model and performs the
- *               write operations (create/overwrite/move/delete) as git commits.
+ *               the flat git tree GitService returns into a nested Document model and
+ *               performs the write operations (create/overwrite/move/delete) as git
+ *               commits. GitService is this package's storage engine — documents ARE
+ *               git — so it lives here rather than in a module of its own; membership's
+ *               createTeam reaches in for initBareRepo, its one cross-feature use.
  *
  *  Author(s):
  *      Nictheboy Li    <nictheboy@outlook.com>
  *
  */
 
-package org.rucca.cheese.document
+package org.rucca.cheese.team.documents
 
-import com.fasterxml.jackson.annotation.JsonInclude
 import org.rucca.cheese.common.persistent.IdType
-import org.rucca.cheese.git.CommitInfo
-import org.rucca.cheese.git.GitService
-import org.rucca.cheese.git.NoSuchFileException
-import org.rucca.cheese.git.TreeEntry
+import org.rucca.cheese.model.DocCommitDTO
+import org.rucca.cheese.model.DocNodeDTO
 import org.springframework.stereotype.Service
 
-/**
- * A node in a team's document tree — a file or a folder. Optional fields are only populated when
- * the request asks for them (content / history / diff / recursive children), so one endpoint can
- * serve the tree, a single file, its git log and a diff without a separate endpoint per view. Null
- * fields are omitted from JSON.
- */
-@JsonInclude(JsonInclude.Include.NON_NULL)
-data class DocNode(
-    val path: String,
-    val isFolder: Boolean,
-    val commitSha: String? = null,
-    val children: List<DocNode>? = null,
-    val content: String? = null,
-    val history: List<CommitInfo>? = null,
-    val diff: String? = null,
-)
+/** GitService's commit -> the API's DocCommit (git types stay internal to this package). */
+private fun CommitInfo.toDTO() =
+    DocCommitDTO(sha = sha, message = message, author = author, timestamp = timestamp)
 
 @Service
 class DocumentService(private val gitService: GitService) {
 
     /**
      * Returns the document at [path] (or the repo root when [path] is empty).
-     * - a folder/root carries [DocNode.children] — the whole subtree when [recursive], otherwise
+     * - a folder/root carries [DocNodeDTO.children] — the whole subtree when [recursive], otherwise
      *   just its immediate entries (folders left unexpanded for lazy loading);
-     * - a file carries [DocNode.content] when [withContent];
+     * - a file carries [DocNodeDTO.content] when [withContent];
      * - [withHistory] adds the git log for the path, [diffSha] adds that commit's diff.
      */
     fun getDocument(
@@ -53,15 +40,17 @@ class DocumentService(private val gitService: GitService) {
         withContent: Boolean,
         withHistory: Boolean,
         diffSha: String?,
-    ): DocNode {
+    ): DocNodeDTO {
         val entries = gitService.refreshIndex(teamId)
         val history =
-            if (withHistory && path.isNotEmpty()) gitService.getHistory(teamId, path) else null
+            if (withHistory && path.isNotEmpty())
+                gitService.getHistory(teamId, path).map { it.toDTO() }
+            else null
         val diff = diffSha?.let { gitService.getDiff(teamId, it) }
 
         val fileEntry = if (path.isNotEmpty()) entries.find { it.path == path } else null
         if (fileEntry != null) {
-            return DocNode(
+            return DocNodeDTO(
                 path = path,
                 isFolder = false,
                 commitSha = fileEntry.commitSha,
@@ -73,7 +62,7 @@ class DocumentService(private val gitService: GitService) {
 
         val under = if (path.isEmpty()) entries else entries.filter { it.path.startsWith("$path/") }
         if (path.isNotEmpty() && under.isEmpty()) throw NoSuchFileException(path)
-        return DocNode(
+        return DocNodeDTO(
             path = path,
             isFolder = true,
             children = buildTree(strip(under, path), path, recursive),
@@ -83,14 +72,14 @@ class DocumentService(private val gitService: GitService) {
     }
 
     /** Create or overwrite a file (idempotent for identical content). */
-    fun writeDocument(teamId: IdType, path: String, content: String, authorId: IdType): DocNode {
+    fun writeDocument(teamId: IdType, path: String, content: String, authorId: IdType): DocNodeDTO {
         val commit = gitService.updateDocument(teamId, path, content, "user-$authorId")
-        return DocNode(path = path, isFolder = false, commitSha = commit.sha, content = content)
+        return DocNodeDTO(path = path, isFolder = false, commitSha = commit.sha, content = content)
     }
 
-    fun moveDocument(teamId: IdType, from: String, to: String, authorId: IdType): DocNode {
+    fun moveDocument(teamId: IdType, from: String, to: String, authorId: IdType): DocNodeDTO {
         val commit = gitService.moveDocument(teamId, from, to, "user-$authorId")
-        return DocNode(
+        return DocNodeDTO(
             path = to,
             isFolder = false,
             commitSha = commit.sha,
@@ -115,13 +104,15 @@ class DocumentService(private val gitService: GitService) {
         entries: List<TreeEntry>,
         prefix: String,
         recursive: Boolean,
-    ): List<DocNode> {
-        val files = mutableListOf<DocNode>()
+    ): List<DocNodeDTO> {
+        val files = mutableListOf<DocNodeDTO>()
         val dirs = linkedMapOf<String, MutableList<TreeEntry>>()
         for (e in entries) {
             val slash = e.path.indexOf('/')
             if (slash < 0) {
-                files.add(DocNode(join(prefix, e.path), isFolder = false, commitSha = e.commitSha))
+                files.add(
+                    DocNodeDTO(join(prefix, e.path), isFolder = false, commitSha = e.commitSha)
+                )
             } else {
                 val dirName = e.path.substring(0, slash)
                 dirs
@@ -132,7 +123,7 @@ class DocumentService(private val gitService: GitService) {
         val folders =
             dirs.map { (dirName, children) ->
                 val full = join(prefix, dirName)
-                DocNode(
+                DocNodeDTO(
                     path = full,
                     isFolder = true,
                     children = if (recursive) buildTree(children, full, true) else null,

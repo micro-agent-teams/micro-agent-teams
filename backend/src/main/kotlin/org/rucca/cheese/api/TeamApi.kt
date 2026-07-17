@@ -10,11 +10,14 @@ import io.swagger.v3.oas.annotations.media.*
 import io.swagger.v3.oas.annotations.responses.*
 import io.swagger.v3.oas.annotations.security.*
 import javax.validation.Valid
+import javax.validation.constraints.NotNull
 import kotlin.collections.List
 import org.rucca.cheese.model.AddTeamMemberRequestDTO
 import org.rucca.cheese.model.ChangeRoleRequestDTO
 import org.rucca.cheese.model.CreateTeamRequestDTO
+import org.rucca.cheese.model.DocNodeDTO
 import org.rucca.cheese.model.ListTeamsResponseDTO
+import org.rucca.cheese.model.MoveDocumentRequestDTO
 import org.rucca.cheese.model.RenameTeamRequestDTO
 import org.rucca.cheese.model.TeamDTO
 import org.rucca.cheese.model.TeamDetailDTO
@@ -26,10 +29,10 @@ import org.springframework.web.bind.annotation.*
 
 @RestController
 @Validated
-interface TeamsApi {
+interface TeamApi {
 
     @Operation(
-        tags = ["teams"],
+        tags = ["team"],
         summary = "Add a member to a team (admin+)",
         operationId = "addTeamMember",
         description = """""",
@@ -37,7 +40,7 @@ interface TeamsApi {
     )
     @RequestMapping(
         method = [RequestMethod.POST],
-        value = ["/teams/{id}/members"],
+        value = ["/team/{id}/members"],
         consumes = ["application/json"],
     )
     fun addTeamMember(
@@ -51,7 +54,7 @@ interface TeamsApi {
     }
 
     @Operation(
-        tags = ["teams"],
+        tags = ["team"],
         summary = "Change a member's role (admin+)",
         operationId = "changeMemberRole",
         description = """""",
@@ -59,7 +62,7 @@ interface TeamsApi {
     )
     @RequestMapping(
         method = [RequestMethod.PATCH],
-        value = ["/teams/{id}/members/{userId}"],
+        value = ["/team/{id}/members/{userId}"],
         consumes = ["application/json"],
     )
     fun changeMemberRole(
@@ -74,7 +77,7 @@ interface TeamsApi {
     }
 
     @Operation(
-        tags = ["teams"],
+        tags = ["team"],
         summary = "Create a team (caller becomes owner)",
         operationId = "createTeam",
         description = """""",
@@ -89,7 +92,7 @@ interface TeamsApi {
     )
     @RequestMapping(
         method = [RequestMethod.POST],
-        value = ["/teams"],
+        value = ["/team"],
         produces = ["application/json"],
         consumes = ["application/json"],
     )
@@ -103,13 +106,32 @@ interface TeamsApi {
     }
 
     @Operation(
-        tags = ["teams"],
+        tags = ["team"],
+        summary = "Delete a file or folder",
+        operationId = "deleteDocument",
+        description = """""",
+        responses = [ApiResponse(responseCode = "204", description = "Deleted")],
+    )
+    @RequestMapping(method = [RequestMethod.DELETE], value = ["/team/{id}/document"])
+    fun deleteDocument(
+        @Parameter(description = "", required = true) @PathVariable("id") id: kotlin.Long,
+        @NotNull
+        @Parameter(description = "", required = true)
+        @Valid
+        @RequestParam(value = "path", required = true)
+        path: kotlin.String,
+    ): ResponseEntity<Unit> {
+        return ResponseEntity(HttpStatus.NOT_IMPLEMENTED)
+    }
+
+    @Operation(
+        tags = ["team"],
         summary = "Delete a team (owner only)",
         operationId = "deleteTeam",
         description = """""",
         responses = [ApiResponse(responseCode = "204", description = "Deleted")],
     )
-    @RequestMapping(method = [RequestMethod.DELETE], value = ["/teams/{id}"])
+    @RequestMapping(method = [RequestMethod.DELETE], value = ["/team/{id}"])
     fun deleteTeam(
         @Parameter(description = "", required = true) @PathVariable("id") id: kotlin.Long
     ): ResponseEntity<Unit> {
@@ -117,7 +139,56 @@ interface TeamsApi {
     }
 
     @Operation(
-        tags = ["teams"],
+        tags = ["team"],
+        summary =
+            "Read a team's document tree, one file, its history or a diff — selected by query flags rather than separate endpoints (future views = new flags). ",
+        operationId = "getDocument",
+        description = """""",
+        responses =
+            [
+                ApiResponse(
+                    responseCode = "200",
+                    description = "OK",
+                    content = [Content(schema = Schema(implementation = DocNodeDTO::class))],
+                )
+            ],
+    )
+    @RequestMapping(
+        method = [RequestMethod.GET],
+        value = ["/team/{id}/document"],
+        produces = ["application/json"],
+    )
+    fun getDocument(
+        @Parameter(description = "", required = true) @PathVariable("id") id: kotlin.Long,
+        @Parameter(
+            description = "Repo-relative logical path; empty means the repo root",
+            schema = Schema(defaultValue = ""),
+        )
+        @Valid
+        @RequestParam(value = "path", required = false, defaultValue = "")
+        path: kotlin.String,
+        @Parameter(description = "", schema = Schema(defaultValue = "false"))
+        @Valid
+        @RequestParam(value = "recursive", required = false, defaultValue = "false")
+        recursive: kotlin.Boolean,
+        @Parameter(description = "", schema = Schema(defaultValue = "false"))
+        @Valid
+        @RequestParam(value = "content", required = false, defaultValue = "false")
+        content: kotlin.Boolean,
+        @Parameter(description = "", schema = Schema(defaultValue = "false"))
+        @Valid
+        @RequestParam(value = "history", required = false, defaultValue = "false")
+        history: kotlin.Boolean,
+        @Parameter(description = "Commit sha to diff against")
+        @Valid
+        @RequestParam(value = "diff", required = false)
+        diff: kotlin.String?,
+    ): ResponseEntity<DocNodeDTO> {
+        return ResponseEntity(HttpStatus.NOT_IMPLEMENTED)
+    }
+
+    @Operation(
+        tags = ["team"],
         summary = "Get team detail plus members",
         operationId = "getTeam",
         description = """""",
@@ -132,7 +203,7 @@ interface TeamsApi {
     )
     @RequestMapping(
         method = [RequestMethod.GET],
-        value = ["/teams/{id}"],
+        value = ["/team/{id}"],
         produces = ["application/json"],
     )
     fun getTeam(
@@ -142,7 +213,7 @@ interface TeamsApi {
     }
 
     @Operation(
-        tags = ["teams"],
+        tags = ["team"],
         summary = "List a team's members",
         operationId = "listTeamMembers",
         description = """""",
@@ -165,7 +236,7 @@ interface TeamsApi {
     )
     @RequestMapping(
         method = [RequestMethod.GET],
-        value = ["/teams/{id}/members"],
+        value = ["/team/{id}/members"],
         produces = ["application/json"],
     )
     fun listTeamMembers(
@@ -175,7 +246,7 @@ interface TeamsApi {
     }
 
     @Operation(
-        tags = ["teams"],
+        tags = ["team"],
         summary = "List teams the current user is a member of",
         operationId = "listTeams",
         description = """""",
@@ -191,7 +262,7 @@ interface TeamsApi {
     )
     @RequestMapping(
         method = [RequestMethod.GET],
-        value = ["/teams"],
+        value = ["/team"],
         produces = ["application/json"],
     )
     fun listTeams(
@@ -212,13 +283,48 @@ interface TeamsApi {
     }
 
     @Operation(
-        tags = ["teams"],
+        tags = ["team"],
+        summary = "Move / rename a file or folder",
+        operationId = "moveDocument",
+        description = """""",
+        responses =
+            [
+                ApiResponse(
+                    responseCode = "200",
+                    description = "Moved",
+                    content = [Content(schema = Schema(implementation = DocNodeDTO::class))],
+                )
+            ],
+    )
+    @RequestMapping(
+        method = [RequestMethod.PATCH],
+        value = ["/team/{id}/document"],
+        produces = ["application/json"],
+        consumes = ["application/json"],
+    )
+    fun moveDocument(
+        @Parameter(description = "", required = true) @PathVariable("id") id: kotlin.Long,
+        @NotNull
+        @Parameter(description = "", required = true)
+        @Valid
+        @RequestParam(value = "path", required = true)
+        path: kotlin.String,
+        @Parameter(description = "", required = true)
+        @Valid
+        @RequestBody
+        moveDocumentRequestDTO: MoveDocumentRequestDTO,
+    ): ResponseEntity<DocNodeDTO> {
+        return ResponseEntity(HttpStatus.NOT_IMPLEMENTED)
+    }
+
+    @Operation(
+        tags = ["team"],
         summary = "Remove a member from a team (admin+)",
         operationId = "removeTeamMember",
         description = """""",
         responses = [ApiResponse(responseCode = "204", description = "Removed")],
     )
-    @RequestMapping(method = [RequestMethod.DELETE], value = ["/teams/{id}/members/{userId}"])
+    @RequestMapping(method = [RequestMethod.DELETE], value = ["/team/{id}/members/{userId}"])
     fun removeTeamMember(
         @Parameter(description = "", required = true) @PathVariable("id") id: kotlin.Long,
         @Parameter(description = "", required = true) @PathVariable("userId") userId: kotlin.Long,
@@ -227,7 +333,7 @@ interface TeamsApi {
     }
 
     @Operation(
-        tags = ["teams"],
+        tags = ["team"],
         summary = "Rename a team (admin+)",
         operationId = "renameTeam",
         description = """""",
@@ -242,7 +348,7 @@ interface TeamsApi {
     )
     @RequestMapping(
         method = [RequestMethod.PATCH],
-        value = ["/teams/{id}"],
+        value = ["/team/{id}"],
         produces = ["application/json"],
         consumes = ["application/json"],
     )
@@ -253,6 +359,38 @@ interface TeamsApi {
         @RequestBody(required = false)
         renameTeamRequestDTO: RenameTeamRequestDTO?,
     ): ResponseEntity<TeamDTO> {
+        return ResponseEntity(HttpStatus.NOT_IMPLEMENTED)
+    }
+
+    @Operation(
+        tags = ["team"],
+        summary = "Create or overwrite a file (raw text body)",
+        operationId = "writeDocument",
+        description = """""",
+        responses =
+            [
+                ApiResponse(
+                    responseCode = "200",
+                    description = "Written",
+                    content = [Content(schema = Schema(implementation = DocNodeDTO::class))],
+                )
+            ],
+    )
+    @RequestMapping(
+        method = [RequestMethod.PUT],
+        value = ["/team/{id}/document"],
+        produces = ["application/json"],
+        consumes = ["text/plain"],
+    )
+    fun writeDocument(
+        @Parameter(description = "", required = true) @PathVariable("id") id: kotlin.Long,
+        @NotNull
+        @Parameter(description = "", required = true)
+        @Valid
+        @RequestParam(value = "path", required = true)
+        path: kotlin.String,
+        @Parameter(description = "") @Valid @RequestBody(required = false) body: kotlin.String?,
+    ): ResponseEntity<DocNodeDTO> {
         return ResponseEntity(HttpStatus.NOT_IMPLEMENTED)
     }
 }

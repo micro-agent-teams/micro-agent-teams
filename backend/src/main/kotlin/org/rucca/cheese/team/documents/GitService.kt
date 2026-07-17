@@ -9,7 +9,7 @@
  *      Nictheboy Li    <nictheboy@outlook.com>
  */
 
-package org.rucca.cheese.git
+package org.rucca.cheese.team.documents
 
 import java.io.ByteArrayOutputStream
 import java.nio.file.Files

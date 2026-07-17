@@ -8,15 +8,15 @@
  *
  */
 
-package org.rucca.cheese.team
+package org.rucca.cheese.team.membership
 
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 import org.rucca.cheese.common.error.NotFoundError
 import org.rucca.cheese.common.helper.PageHelper
 import org.rucca.cheese.common.persistent.IdType
-import org.rucca.cheese.git.GitService
 import org.rucca.cheese.model.*
+import org.rucca.cheese.team.documents.GitService
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 

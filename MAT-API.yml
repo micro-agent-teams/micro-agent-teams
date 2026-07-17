@@ -27,11 +27,13 @@ paths:
 
   # -- Chat threads ---------------------------------------------------------
 
-  /threads:
+  /chat:
     get:
       tags: [chat]
-      operationId: listThreads
-      summary: List threads the current user is a member of
+      operationId: listChats
+      summary: >
+        List the current user's chats, each enriched with its members and its last
+        message, most-recent activity first (everything the chat list needs in one call).
       parameters:
         - name: page_start
           in: query
@@ -42,14 +44,14 @@ paths:
           in: query
           schema:
             type: integer
-            default: 20
+            default: 50
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ListThreadsResponse"
+                $ref: "#/components/schemas/ListChatsResponse"
     post:
       tags: [chat]
       operationId: createThread
@@ -67,7 +69,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Thread"
 
-  /threads/{id}:
+  /chat/{id}:
     get:
       tags: [chat]
       operationId: getThread
@@ -126,7 +128,7 @@ paths:
 
   # -- Messages ------------------------------------------------------------
 
-  /threads/{id}/messages:
+  /chat/{id}/messages:
     get:
       tags: [chat]
       operationId: listMessages
@@ -181,7 +183,7 @@ paths:
                 $ref: "#/components/schemas/Message"
 
 
-  /threads/{id}/members:
+  /chat/{id}/members:
     get:
       tags: [chat]
       operationId: listThreadMembers
@@ -222,7 +224,7 @@ paths:
         "204":
           description: Added
 
-  /threads/{id}/members/{userId}:
+  /chat/{id}/members/{userId}:
     delete:
       tags: [chat]
       operationId: removeThreadMember
@@ -271,9 +273,9 @@ paths:
 
   # -- Teams ----------------------------------------------------------------
 
-  /teams:
+  /team:
     get:
-      tags: [teams]
+      tags: [team]
       operationId: listTeams
       summary: List teams the current user is a member of
       parameters:
@@ -301,7 +303,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ListTeamsResponse"
     post:
-      tags: [teams]
+      tags: [team]
       operationId: createTeam
       summary: Create a team (caller becomes owner)
       requestBody:
@@ -317,9 +319,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/Team"
 
-  /teams/{id}:
+  /team/{id}:
     get:
-      tags: [teams]
+      tags: [team]
       operationId: getTeam
       summary: Get team detail plus members
       parameters:
@@ -337,7 +339,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/TeamDetail"
     patch:
-      tags: [teams]
+      tags: [team]
       operationId: renameTeam
       summary: Rename a team (admin+)
       parameters:
@@ -360,7 +362,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Team"
     delete:
-      tags: [teams]
+      tags: [team]
       operationId: deleteTeam
       summary: Delete a team (owner only)
       parameters:
@@ -374,9 +376,9 @@ paths:
         "204":
           description: Deleted
 
-  /teams/{id}/members:
+  /team/{id}/members:
     get:
-      tags: [teams]
+      tags: [team]
       operationId: listTeamMembers
       summary: List a team's members
       parameters:
@@ -396,7 +398,7 @@ paths:
                 items:
                   $ref: "#/components/schemas/TeamMember"
     post:
-      tags: [teams]
+      tags: [team]
       operationId: addTeamMember
       summary: Add a member to a team (admin+)
       parameters:
@@ -415,9 +417,9 @@ paths:
         "204":
           description: Added
 
-  /teams/{id}/members/{userId}:
+  /team/{id}/members/{userId}:
     patch:
-      tags: [teams]
+      tags: [team]
       operationId: changeMemberRole
       summary: Change a member's role (admin+)
       parameters:
@@ -442,7 +444,7 @@ paths:
         "204":
           description: Role changed
     delete:
-      tags: [teams]
+      tags: [team]
       operationId: removeTeamMember
       summary: Remove a member from a team (admin+)
       parameters:
@@ -461,6 +463,132 @@ paths:
       responses:
         "204":
           description: Removed
+
+  # -- Documents (a team's git tree; no document table) ---------------------
+
+  /team/{id}/document:
+    get:
+      tags: [team]
+      operationId: getDocument
+      summary: >
+        Read a team's document tree, one file, its history or a diff — selected by query
+        flags rather than separate endpoints (future views = new flags).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: path
+          in: query
+          description: Repo-relative logical path; empty means the repo root
+          schema:
+            type: string
+            default: ""
+        - name: recursive
+          in: query
+          schema:
+            type: boolean
+            default: false
+        - name: content
+          in: query
+          schema:
+            type: boolean
+            default: false
+        - name: history
+          in: query
+          schema:
+            type: boolean
+            default: false
+        - name: diff
+          in: query
+          description: Commit sha to diff against
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocNode"
+    put:
+      tags: [team]
+      operationId: writeDocument
+      summary: Create or overwrite a file (raw text body)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: path
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          text/plain:
+            schema:
+              type: string
+      responses:
+        "200":
+          description: Written
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocNode"
+    patch:
+      tags: [team]
+      operationId: moveDocument
+      summary: Move / rename a file or folder
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: path
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MoveDocumentRequest"
+      responses:
+        "200":
+          description: Moved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocNode"
+    delete:
+      tags: [team]
+      operationId: deleteDocument
+      summary: Delete a file or folder
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: path
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
 
 components:
   schemas:
@@ -533,18 +661,73 @@ components:
 
     # -- Chat schemas (schema: mat, per MILESTONE-2-PLAN.md §3.1) ---------
 
-    ListThreadsResponse:
+    ListChatsResponse:
       type: object
       required:
-        - threads
+        - chats
         - page
       properties:
-        threads:
+        chats:
           type: array
           items:
-            $ref: "#/components/schemas/Thread"
+            $ref: "#/components/schemas/ChatSummary"
         page:
           $ref: "#/components/schemas/Page"
+
+    # A chat as the list shows it: who is in it and what was said last.
+    ChatSummary:
+      type: object
+      required:
+        - id
+        - title
+        - members
+        - updatedAt
+      properties:
+        id:
+          type: integer
+          format: int64
+        title:
+          type: string
+        members:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChatMember"
+        lastMessage:
+          $ref: "#/components/schemas/ChatLastMessage"
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last activity (last message time, else the chat's creation time)
+
+    ChatMember:
+      type: object
+      required:
+        - userId
+        - nickname
+      properties:
+        userId:
+          type: integer
+          format: int64
+        nickname:
+          type: string
+        avatarId:
+          type: integer
+
+    ChatLastMessage:
+      type: object
+      required:
+        - content
+        - senderId
+        - createdAt
+      properties:
+        content:
+          type: string
+        senderId:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
 
     ListMessagesResponse:
       type: object
@@ -782,3 +965,58 @@ components:
           type: string
           enum: [OWNER, ADMIN, MEMBER]
 
+
+    # -- Documents ---------------------------------------------------------
+
+    # One node of a team's git document tree. Recursive: a folder carries children.
+    # Optional fields appear only when the matching query flag asked for them.
+    DocNode:
+      type: object
+      required:
+        - path
+        - isFolder
+      properties:
+        path:
+          type: string
+        isFolder:
+          type: boolean
+        commitSha:
+          type: string
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/DocNode"
+        content:
+          type: string
+        history:
+          type: array
+          items:
+            $ref: "#/components/schemas/DocCommit"
+        diff:
+          type: string
+
+    DocCommit:
+      type: object
+      required:
+        - sha
+        - message
+        - author
+        - timestamp
+      properties:
+        sha:
+          type: string
+        message:
+          type: string
+        author:
+          type: string
+        timestamp:
+          type: integer
+          format: int64
+
+    MoveDocumentRequest:
+      type: object
+      required:
+        - newPath
+      properties:
+        newPath:
+          type: string

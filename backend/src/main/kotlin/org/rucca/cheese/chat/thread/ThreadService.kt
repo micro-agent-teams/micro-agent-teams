@@ -1,12 +1,24 @@
-package org.rucca.cheese.chat
+/*
+ *  Description: This file implements the ThreadService class — the thread half of the
+ *               chat module: the chat list, the thread itself and its membership.
+ *               Messages belong to MessageService (chat/message); this service only reads
+ *               a thread's last message to build the chat list.
+ *
+ *  Author(s):
+ *      Nictheboy Li    <nictheboy@outlook.com>
+ *
+ */
+
+package org.rucca.cheese.chat.thread
 
 import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
+import org.rucca.cheese.chat.message.MessageRepository
 import org.rucca.cheese.common.error.NotFoundError
 import org.rucca.cheese.common.helper.PageHelper
 import org.rucca.cheese.model.*
-import org.springframework.messaging.simp.SimpMessagingTemplate
+import org.rucca.cheese.user.UserProfileRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -16,13 +28,59 @@ class ThreadService(
     private val threadRepository: ThreadRepository,
     private val threadMemberRepository: ThreadMemberRepository,
     private val messageRepository: MessageRepository,
-    private val messagingTemplate: SimpMessagingTemplate?,
+    private val userProfileRepository: UserProfileRepository,
 ) {
-    fun listThreads(userId: Long, pageStart: Long?, pageSize: Int): Pair<List<ThreadDTO>, PageDTO> {
-        val threads = threadRepository.threadsForUser(userId).sortedBy { it.id }
+    /**
+     * The caller's chats, each with its members and its last message, most-recent activity first —
+     * everything the chat list renders (last line + member avatars) in one call.
+     */
+    fun listChats(
+        userId: Long,
+        pageStart: Long?,
+        pageSize: Int,
+    ): Pair<List<ChatSummaryDTO>, PageDTO> {
+        val summaries =
+            threadRepository
+                .threadsForUser(userId)
+                .map { it.toChatSummaryDTO() }
+                .sortedWith(
+                    compareByDescending<ChatSummaryDTO> { it.updatedAt }.thenByDescending { it.id }
+                )
         val (page, pageInfo) =
-            PageHelper.pageFromAll(threads, pageStart, pageSize, { it.id!! }, null)
-        return page.map { it.toDTO() } to pageInfo
+            PageHelper.pageFromAll(summaries, pageStart, pageSize, { it.id }, null)
+        return page to pageInfo
+    }
+
+    private fun ThreadEntity.toChatSummaryDTO(): ChatSummaryDTO {
+        val threadId = id!!
+        val members =
+            threadMemberRepository
+                .findByThreadId(threadId)
+                .mapNotNull { it.userId }
+                .map { uid ->
+                    val profile = userProfileRepository.findByUserId(uid.toInt()).orElse(null)
+                    ChatMemberDTO(
+                        userId = uid,
+                        nickname = profile?.nickname ?: "user$uid",
+                        avatarId = profile?.avatar?.id,
+                    )
+                }
+        val last = messageRepository.findTopByThreadIdAndDeletedAtIsNullOrderByIdDesc(threadId)
+        val activity = last?.createdAt ?: createdAt ?: LocalDateTime.MIN
+        return ChatSummaryDTO(
+            id = threadId,
+            title = title ?: "",
+            members = members,
+            lastMessage =
+                last?.let {
+                    ChatLastMessageDTO(
+                        content = it.content ?: "",
+                        senderId = it.senderId!!,
+                        createdAt = it.createdAt!!.atOffset(ZoneOffset.UTC),
+                    )
+                },
+            updatedAt = activity.atOffset(ZoneOffset.UTC),
+        )
     }
 
     fun createThread(userId: Long, body: CreateThreadRequestDTO): ThreadDTO {
@@ -72,30 +130,6 @@ class ThreadService(
         threadRepository.save(t)
     }
 
-    fun listMessages(
-        threadId: Long,
-        pageStart: Long?,
-        pageSize: Int,
-    ): Pair<List<MessageDTO>, PageDTO> {
-        val messages = messageRepository.findByThreadIdAndDeletedAtIsNullOrderById(threadId)
-        val (page, pageInfo) =
-            PageHelper.pageFromAll(messages, pageStart, pageSize, { it.id!! }, null)
-        return page.map { it.toDTO() } to pageInfo
-    }
-
-    fun postMessage(threadId: Long, userId: Long, body: PostMessageRequestDTO): MessageDTO {
-        val m =
-            MessageEntity().apply {
-                this.threadId = threadId
-                senderId = userId
-                content = body.content
-            }
-        messageRepository.save(m)
-        val dto = m.toDTO()
-        messagingTemplate?.convertAndSend("/topic/thread/$threadId", dto)
-        return dto
-    }
-
     fun listMembers(threadId: Long): List<ThreadMemberDTO> =
         threadMemberRepository.findByThreadId(threadId).map { it.toDTO() }
 
@@ -143,14 +177,4 @@ fun ThreadMemberEntity.toDTO() =
         userId = userId!!,
         role = role.toDTO(),
         joinedAt = createdAt?.atOffset(ZoneOffset.UTC) ?: OffsetDateTime.now(),
-    )
-
-fun MessageEntity.toDTO() =
-    MessageDTO(
-        id = id!!,
-        threadId = threadId!!,
-        senderId = senderId!!,
-        content = content ?: "",
-        createdAt = createdAt?.atOffset(ZoneOffset.UTC) ?: OffsetDateTime.now(),
-        editedAt = editedAt?.atOffset(ZoneOffset.UTC),
     )

@@ -7,7 +7,7 @@
  *
  */
 
-package org.rucca.cheese.chat
+package org.rucca.cheese.chat.thread
 
 import org.rucca.cheese.model.AddMemberRequestDTO
 import org.rucca.cheese.model.ChangeRoleRequestDTO

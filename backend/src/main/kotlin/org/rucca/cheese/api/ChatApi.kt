@@ -14,8 +14,8 @@ import kotlin.collections.List
 import org.rucca.cheese.model.AddMemberRequestDTO
 import org.rucca.cheese.model.ChangeRoleRequestDTO
 import org.rucca.cheese.model.CreateThreadRequestDTO
+import org.rucca.cheese.model.ListChatsResponseDTO
 import org.rucca.cheese.model.ListMessagesResponseDTO
-import org.rucca.cheese.model.ListThreadsResponseDTO
 import org.rucca.cheese.model.MessageDTO
 import org.rucca.cheese.model.PostMessageRequestDTO
 import org.rucca.cheese.model.RenameThreadRequestDTO
@@ -29,7 +29,7 @@ import org.springframework.web.bind.annotation.*
 
 @RestController
 @Validated
-interface ThreadsApi {
+interface ChatApi {
 
     @Operation(
         tags = ["chat"],
@@ -40,7 +40,7 @@ interface ThreadsApi {
     )
     @RequestMapping(
         method = [RequestMethod.POST],
-        value = ["/threads/{id}/members"],
+        value = ["/chat/{id}/members"],
         consumes = ["application/json"],
     )
     fun addThreadMember(
@@ -62,7 +62,7 @@ interface ThreadsApi {
     )
     @RequestMapping(
         method = [RequestMethod.PATCH],
-        value = ["/threads/{id}/members/{userId}"],
+        value = ["/chat/{id}/members/{userId}"],
         consumes = ["application/json"],
     )
     fun changeThreadMemberRole(
@@ -92,7 +92,7 @@ interface ThreadsApi {
     )
     @RequestMapping(
         method = [RequestMethod.POST],
-        value = ["/threads"],
+        value = ["/chat"],
         produces = ["application/json"],
         consumes = ["application/json"],
     )
@@ -112,7 +112,7 @@ interface ThreadsApi {
         description = """""",
         responses = [ApiResponse(responseCode = "204", description = "Dissolved")],
     )
-    @RequestMapping(method = [RequestMethod.DELETE], value = ["/threads/{id}"])
+    @RequestMapping(method = [RequestMethod.DELETE], value = ["/chat/{id}"])
     fun dissolveThread(
         @Parameter(description = "", required = true) @PathVariable("id") id: kotlin.Long
     ): ResponseEntity<Unit> {
@@ -135,12 +135,46 @@ interface ThreadsApi {
     )
     @RequestMapping(
         method = [RequestMethod.GET],
-        value = ["/threads/{id}"],
+        value = ["/chat/{id}"],
         produces = ["application/json"],
     )
     fun getThread(
         @Parameter(description = "", required = true) @PathVariable("id") id: kotlin.Long
     ): ResponseEntity<ThreadDetailDTO> {
+        return ResponseEntity(HttpStatus.NOT_IMPLEMENTED)
+    }
+
+    @Operation(
+        tags = ["chat"],
+        summary =
+            "List the current user's chats, each enriched with its members and its last message, most-recent activity first (everything the chat list needs in one call). ",
+        operationId = "listChats",
+        description = """""",
+        responses =
+            [
+                ApiResponse(
+                    responseCode = "200",
+                    description = "OK",
+                    content =
+                        [Content(schema = Schema(implementation = ListChatsResponseDTO::class))],
+                )
+            ],
+    )
+    @RequestMapping(
+        method = [RequestMethod.GET],
+        value = ["/chat"],
+        produces = ["application/json"],
+    )
+    fun listChats(
+        @Parameter(description = "")
+        @Valid
+        @RequestParam(value = "page_start", required = false)
+        pageStart: kotlin.Long?,
+        @Parameter(description = "", schema = Schema(defaultValue = "50"))
+        @Valid
+        @RequestParam(value = "page_size", required = false, defaultValue = "50")
+        pageSize: kotlin.Int,
+    ): ResponseEntity<ListChatsResponseDTO> {
         return ResponseEntity(HttpStatus.NOT_IMPLEMENTED)
     }
 
@@ -161,7 +195,7 @@ interface ThreadsApi {
     )
     @RequestMapping(
         method = [RequestMethod.GET],
-        value = ["/threads/{id}/messages"],
+        value = ["/chat/{id}/messages"],
         produces = ["application/json"],
     )
     fun listMessages(
@@ -202,45 +236,12 @@ interface ThreadsApi {
     )
     @RequestMapping(
         method = [RequestMethod.GET],
-        value = ["/threads/{id}/members"],
+        value = ["/chat/{id}/members"],
         produces = ["application/json"],
     )
     fun listThreadMembers(
         @Parameter(description = "", required = true) @PathVariable("id") id: kotlin.Long
     ): ResponseEntity<List<ThreadMemberDTO>> {
-        return ResponseEntity(HttpStatus.NOT_IMPLEMENTED)
-    }
-
-    @Operation(
-        tags = ["chat"],
-        summary = "List threads the current user is a member of",
-        operationId = "listThreads",
-        description = """""",
-        responses =
-            [
-                ApiResponse(
-                    responseCode = "200",
-                    description = "OK",
-                    content =
-                        [Content(schema = Schema(implementation = ListThreadsResponseDTO::class))],
-                )
-            ],
-    )
-    @RequestMapping(
-        method = [RequestMethod.GET],
-        value = ["/threads"],
-        produces = ["application/json"],
-    )
-    fun listThreads(
-        @Parameter(description = "")
-        @Valid
-        @RequestParam(value = "page_start", required = false)
-        pageStart: kotlin.Long?,
-        @Parameter(description = "", schema = Schema(defaultValue = "20"))
-        @Valid
-        @RequestParam(value = "page_size", required = false, defaultValue = "20")
-        pageSize: kotlin.Int,
-    ): ResponseEntity<ListThreadsResponseDTO> {
         return ResponseEntity(HttpStatus.NOT_IMPLEMENTED)
     }
 
@@ -260,7 +261,7 @@ interface ThreadsApi {
     )
     @RequestMapping(
         method = [RequestMethod.POST],
-        value = ["/threads/{id}/messages"],
+        value = ["/chat/{id}/messages"],
         produces = ["application/json"],
         consumes = ["application/json"],
     )
@@ -281,7 +282,7 @@ interface ThreadsApi {
         description = """""",
         responses = [ApiResponse(responseCode = "204", description = "Removed")],
     )
-    @RequestMapping(method = [RequestMethod.DELETE], value = ["/threads/{id}/members/{userId}"])
+    @RequestMapping(method = [RequestMethod.DELETE], value = ["/chat/{id}/members/{userId}"])
     fun removeThreadMember(
         @Parameter(description = "", required = true) @PathVariable("id") id: kotlin.Long,
         @Parameter(description = "", required = true) @PathVariable("userId") userId: kotlin.Long,
@@ -305,7 +306,7 @@ interface ThreadsApi {
     )
     @RequestMapping(
         method = [RequestMethod.PATCH],
-        value = ["/threads/{id}"],
+        value = ["/chat/{id}"],
         produces = ["application/json"],
         consumes = ["application/json"],
     )

@@ -1,7 +1,10 @@
 /*
- *  Description: This file defines the TeamController class.
- *               It provides the endpoints of /teams and registers the team
- *               authorization logics (owner resolver, member/admin predicates).
+ *  Description: The team module's one controller — every method implements a TeamApi
+ *               operation generated from MAT-API.yml, nothing more. It serves the whole
+ *               /team surface: the team itself and its membership (delegated to
+ *               membership/TeamService) and the team's documents (delegated to
+ *               documents/DocumentService), and registers the team authorization logics
+ *               (owner resolver, member/admin predicates).
  *
  *  Author(s):
  *      Nictheboy Li    <nictheboy@outlook.com>
@@ -12,7 +15,7 @@ package org.rucca.cheese.team
 
 import javax.annotation.PostConstruct
 import javax.validation.Valid
-import org.rucca.cheese.api.TeamsApi
+import org.rucca.cheese.api.TeamApi
 import org.rucca.cheese.auth.AuthenticationService
 import org.rucca.cheese.auth.AuthorizationService
 import org.rucca.cheese.auth.AuthorizedAction
@@ -22,6 +25,8 @@ import org.rucca.cheese.common.error.BadRequestError
 import org.rucca.cheese.common.persistent.IdGetter
 import org.rucca.cheese.common.persistent.IdType
 import org.rucca.cheese.model.*
+import org.rucca.cheese.team.documents.DocumentService
+import org.rucca.cheese.team.membership.*
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
@@ -29,9 +34,10 @@ import org.springframework.web.bind.annotation.*
 @RestController
 class TeamController(
     private val teamService: TeamService,
+    private val documentService: DocumentService,
     private val authorizationService: AuthorizationService,
     private val authenticationService: AuthenticationService,
-) : TeamsApi {
+) : TeamApi {
     @PostConstruct
     fun initialize() {
         authorizationService.ownerIds.register("team", teamService::getTeamOwner)
@@ -136,6 +142,73 @@ class TeamController(
         @PathVariable("userId") userId: IdType,
     ): ResponseEntity<Unit> {
         teamService.removeMember(id, userId)
+        return ResponseEntity(HttpStatus.NO_CONTENT)
+    }
+
+    // -- Documents (the team's git tree; no document table) ------------------
+
+    /** Rejects paths that could escape the repo. Empty path is allowed (= repo root). */
+    private fun checkPath(path: String) {
+        val unsafe =
+            path.startsWith("/") || path.startsWith("\\") || path.split('/').any { it == ".." }
+        if (unsafe) throw BadRequestError("unsafe path: $path")
+    }
+
+    private fun requirePath(path: String) {
+        if (path.isBlank()) throw BadRequestError("path is required")
+    }
+
+    @Guard("read", "team_document")
+    override fun getDocument(
+        @PathVariable("id") @ResourceId id: IdType,
+        path: String,
+        recursive: Boolean,
+        content: Boolean,
+        history: Boolean,
+        diff: String?,
+    ): ResponseEntity<DocNodeDTO> {
+        checkPath(path)
+        return ResponseEntity.ok(
+            documentService.getDocument(id, path, recursive, content, history, diff)
+        )
+    }
+
+    @Guard("create", "team_document")
+    override fun writeDocument(
+        @PathVariable("id") @ResourceId id: IdType,
+        path: String,
+        body: String?,
+    ): ResponseEntity<DocNodeDTO> {
+        checkPath(path)
+        requirePath(path)
+        return ResponseEntity.ok(
+            documentService.writeDocument(id, path, body ?: "", currentUserId())
+        )
+    }
+
+    @Guard("update", "team_document")
+    override fun moveDocument(
+        @PathVariable("id") @ResourceId id: IdType,
+        path: String,
+        moveDocumentRequestDTO: MoveDocumentRequestDTO,
+    ): ResponseEntity<DocNodeDTO> {
+        checkPath(path)
+        requirePath(path)
+        checkPath(moveDocumentRequestDTO.newPath)
+        requirePath(moveDocumentRequestDTO.newPath)
+        return ResponseEntity.ok(
+            documentService.moveDocument(id, path, moveDocumentRequestDTO.newPath, currentUserId())
+        )
+    }
+
+    @Guard("delete", "team_document")
+    override fun deleteDocument(
+        @PathVariable("id") @ResourceId id: IdType,
+        path: String,
+    ): ResponseEntity<Unit> {
+        checkPath(path)
+        requirePath(path)
+        documentService.deleteDocument(id, path, currentUserId())
         return ResponseEntity(HttpStatus.NO_CONTENT)
     }
 }

@@ -1,6 +1,6 @@
 /*
- *  Description: Integration test for the chat feature. Drives the /threads and
- *               /threads/{id}/messages endpoints through the full stack — thread
+ *  Description: Integration test for the chat feature. Drives the /chat and
+ *               /chat/{id}/messages endpoints through the full stack — thread
  *               CRUD, membership, messages, pagination and the auth gates — with
  *               real users created via cheese-auth.
  *
@@ -62,7 +62,7 @@ constructor(private val mockMvc: MockMvc, private val userCreatorService: UserCr
         val response =
             mockMvc
                 .perform(
-                    post("/threads")
+                    post("/chat")
                         .header("Authorization", "Bearer $ownerToken")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""{"title":"Design chat"}""")
@@ -78,7 +78,7 @@ constructor(private val mockMvc: MockMvc, private val userCreatorService: UserCr
     @Order(20)
     fun getThreadShowsOwnerMembership() {
         mockMvc
-            .perform(get("/threads/$threadId").header("Authorization", "Bearer $ownerToken"))
+            .perform(get("/chat/$threadId").header("Authorization", "Bearer $ownerToken"))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.thread.id").value(threadId))
             .andExpect(jsonPath("$.members[0].userId").value(owner.userId))
@@ -89,9 +89,9 @@ constructor(private val mockMvc: MockMvc, private val userCreatorService: UserCr
     @Order(21)
     fun listThreadsIsPaginated() {
         mockMvc
-            .perform(get("/threads").header("Authorization", "Bearer $ownerToken"))
+            .perform(get("/chat").header("Authorization", "Bearer $ownerToken"))
             .andExpect(status().isOk)
-            .andExpect(jsonPath("$.threads[0].id").value(threadId))
+            .andExpect(jsonPath("$.chats[0].id").value(threadId))
             .andExpect(jsonPath("$.page.page_size").value(1))
             .andExpect(jsonPath("$.page.has_more").value(false))
     }
@@ -100,14 +100,14 @@ constructor(private val mockMvc: MockMvc, private val userCreatorService: UserCr
     @Order(30)
     fun strangerCannotReadThread() {
         mockMvc
-            .perform(get("/threads/$threadId").header("Authorization", "Bearer $strangerToken"))
+            .perform(get("/chat/$threadId").header("Authorization", "Bearer $strangerToken"))
             .andExpect(status().isForbidden)
     }
 
     @Test
     @Order(31)
     fun anonymousIsUnauthorized() {
-        mockMvc.perform(get("/threads/$threadId")).andExpect(status().isUnauthorized)
+        mockMvc.perform(get("/chat/$threadId")).andExpect(status().isUnauthorized)
     }
 
     @Test
@@ -115,16 +115,14 @@ constructor(private val mockMvc: MockMvc, private val userCreatorService: UserCr
     fun ownerAddsMember() {
         mockMvc
             .perform(
-                post("/threads/$threadId/members")
+                post("/chat/$threadId/members")
                     .header("Authorization", "Bearer $ownerToken")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content("""{"userId":${member.userId},"role":"MEMBER"}""")
             )
             .andExpect(status().isNoContent)
         mockMvc
-            .perform(
-                get("/threads/$threadId/members").header("Authorization", "Bearer $ownerToken")
-            )
+            .perform(get("/chat/$threadId/members").header("Authorization", "Bearer $ownerToken"))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.length()").value(2))
     }
@@ -133,7 +131,7 @@ constructor(private val mockMvc: MockMvc, private val userCreatorService: UserCr
     @Order(41)
     fun memberCanReadThread() {
         mockMvc
-            .perform(get("/threads/$threadId").header("Authorization", "Bearer $memberToken"))
+            .perform(get("/chat/$threadId").header("Authorization", "Bearer $memberToken"))
             .andExpect(status().isOk)
     }
 
@@ -142,7 +140,7 @@ constructor(private val mockMvc: MockMvc, private val userCreatorService: UserCr
     fun ordinaryMemberCannotAddMembers() {
         mockMvc
             .perform(
-                post("/threads/$threadId/members")
+                post("/chat/$threadId/members")
                     .header("Authorization", "Bearer $memberToken")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content("""{"userId":${stranger.userId},"role":"MEMBER"}""")
@@ -155,7 +153,7 @@ constructor(private val mockMvc: MockMvc, private val userCreatorService: UserCr
     fun memberPostsMessage() {
         mockMvc
             .perform(
-                post("/threads/$threadId/messages")
+                post("/chat/$threadId/messages")
                     .header("Authorization", "Bearer $memberToken")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content("""{"content":"hello team"}""")
@@ -169,9 +167,7 @@ constructor(private val mockMvc: MockMvc, private val userCreatorService: UserCr
     @Order(61)
     fun listMessagesIsPaginated() {
         mockMvc
-            .perform(
-                get("/threads/$threadId/messages").header("Authorization", "Bearer $ownerToken")
-            )
+            .perform(get("/chat/$threadId/messages").header("Authorization", "Bearer $ownerToken"))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.messages[0].content").value("hello team"))
             .andExpect(jsonPath("$.page.page_size", greaterThanOrEqualTo(1)))
@@ -182,7 +178,7 @@ constructor(private val mockMvc: MockMvc, private val userCreatorService: UserCr
     fun strangerCannotPostMessage() {
         mockMvc
             .perform(
-                post("/threads/$threadId/messages")
+                post("/chat/$threadId/messages")
                     .header("Authorization", "Bearer $strangerToken")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content("""{"content":"intruder"}""")
@@ -195,7 +191,7 @@ constructor(private val mockMvc: MockMvc, private val userCreatorService: UserCr
     fun ordinaryMemberCannotRename() {
         mockMvc
             .perform(
-                patch("/threads/$threadId")
+                patch("/chat/$threadId")
                     .header("Authorization", "Bearer $memberToken")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content("""{"title":"nope"}""")
@@ -208,7 +204,7 @@ constructor(private val mockMvc: MockMvc, private val userCreatorService: UserCr
     fun ownerRenamesThread() {
         mockMvc
             .perform(
-                patch("/threads/$threadId")
+                patch("/chat/$threadId")
                     .header("Authorization", "Bearer $ownerToken")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content("""{"title":"Design chat (renamed)"}""")
@@ -222,7 +218,7 @@ constructor(private val mockMvc: MockMvc, private val userCreatorService: UserCr
     fun promotedAdminCanRename() {
         mockMvc
             .perform(
-                patch("/threads/$threadId/members/${member.userId}")
+                patch("/chat/$threadId/members/${member.userId}")
                     .header("Authorization", "Bearer $ownerToken")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content("""{"role":"ADMIN"}""")
@@ -230,7 +226,7 @@ constructor(private val mockMvc: MockMvc, private val userCreatorService: UserCr
             .andExpect(status().isNoContent)
         mockMvc
             .perform(
-                patch("/threads/$threadId")
+                patch("/chat/$threadId")
                     .header("Authorization", "Bearer $memberToken")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content("""{"title":"Design chat (by admin)"}""")
@@ -243,7 +239,7 @@ constructor(private val mockMvc: MockMvc, private val userCreatorService: UserCr
     fun adminCannotDissolveThread() {
         // dissolve is owner-only ("owned"); the member is an admin now.
         mockMvc
-            .perform(delete("/threads/$threadId").header("Authorization", "Bearer $memberToken"))
+            .perform(delete("/chat/$threadId").header("Authorization", "Bearer $memberToken"))
             .andExpect(status().isForbidden)
     }
 
@@ -251,7 +247,7 @@ constructor(private val mockMvc: MockMvc, private val userCreatorService: UserCr
     @Order(90)
     fun ownerDissolvesThread() {
         mockMvc
-            .perform(delete("/threads/$threadId").header("Authorization", "Bearer $ownerToken"))
+            .perform(delete("/chat/$threadId").header("Authorization", "Bearer $ownerToken"))
             .andExpect(status().isNoContent)
     }
 }

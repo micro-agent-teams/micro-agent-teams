@@ -244,7 +244,7 @@
                             <goal>generate</goal>
                         </goals>
                         <configuration>
-                            <inputSpec>./design/API/NT-API.yml</inputSpec>
+                            <inputSpec>./design/API/MAT-API.yml</inputSpec>
                             <generatorName>kotlin-spring</generatorName>
                             <skipIfSpecIsUnchanged>true</skipIfSpecIsUnchanged>
                             <modelNameSuffix>DTO</modelNameSuffix>

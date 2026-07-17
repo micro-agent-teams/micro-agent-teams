@@ -12,19 +12,32 @@ not debug by "start the jar and curl". See _Testing_.
 
 ## 1. OpenAPI-first codegen
 
-- Change `design/API/NT-API.yml` **first**, then build regenerates the API interfaces
+- Change `design/API/MAT-API.yml` **first**, then build regenerates the API interfaces
   (`org.rucca.cheese.api.*Api`) and DTOs (`org.rucca.cheese.model.*DTO`). **Never hand-write
   or hand-edit generated interfaces / DTOs.**
 - The generator writes **into `src/main/kotlin/.../api` and `.../model`** (not `target/`) and
   **does not delete stale files**. When you remove a path/schema from the YAML, manually
   `rm` the orphaned generated `.kt` file(s).
+- Same trap one level down: `target/classes` keeps `.class` files for sources you moved or
+  deleted, and the compiler happily resolves against them — a moved package produces
+  impossible errors like "actual type is `team.membership.TeamMemberRole` but
+  `team.TeamMemberRole` was expected". **After moving/renaming/deleting anything, `./mvnw
+  clean`.** (This has bitten us twice: once here, once as a stale `TeamServiceTest.class`
+  failing tests whose source no longer existed.)
 - Controllers implement the generated `XxxApi` interface. Match the generated method
   signature exactly (compile tells you if it drifted — e.g. `pageSize: Int` not `Int?` when
   the param has a default).
-- A **hand-written `@RestController`** (not in the YAML) is acceptable for query-flag-heavy
-  endpoints where modeling every shape in YAML hurts more than it helps — e.g.
-  `DocsController` (`/teams/{id}/docs`). Keep such controllers thin and consistent with the
-  rest.
+- **One module = one path prefix = one controller.** A module's package name is the singular
+  first path segment (`/chat` → `chat/ChatController`, `/team` → `team/TeamController`), and
+  that controller's methods are **only** implementations of its generated `XxxApi` — nothing
+  else. The generator derives the Api class from the **first path segment, not the tag**, so
+  the path drives everything: put an operation under `/team/...` and it lands in `TeamApi`.
+- A module may split its *implementation* into subpackages by feature — `team/membership`
+  (team + members) and `team/documents` (the git tree) each own their entities and services —
+  but the single `TeamController` in `team/` stays the only entry point.
+- Hand-written `@RestController`s are **not** an accepted escape hatch: everything expressible
+  as HTTP goes in the YAML. Only what OpenAPI genuinely cannot describe (the connector's
+  WebSocket endpoints) is registered outside it, and as handlers, not controllers.
 
 ## 2. Entities & persistence
 
@@ -97,9 +110,13 @@ not debug by "start the jar and curl". See _Testing_.
 
 - There is **no document table**. Each team owns a bare git repo at
   `${application.git-repo-base}/{teamId}.git` (`GitService`).
-- Prefer **one consolidated endpoint with query flags** over many endpoints. `/teams/{id}/docs`
-  GET serves root/tree/file/history/diff via `path` / `recursive` / `content` / `history` /
-  `diff`; PUT/PATCH/DELETE do write/move/delete. Future views = new flags, not new endpoints.
+- Documents are a **feature of the team module**, not a module of their own: the API is
+  `/team/{id}/document` (so it generates into `TeamApi` and is served by `TeamController`),
+  and the implementation lives in `team/documents/`.
+- Prefer **one consolidated endpoint with query flags** over many endpoints.
+  `/team/{id}/document` GET serves root/tree/file/history/diff via `path` / `recursive` /
+  `content` / `history` / `diff`; PUT/PATCH/DELETE do write/move/delete. Future views = new
+  flags, not new endpoints.
 - **Reads pull blobs straight from the bare repo** (no clone). **Writes** clone a throwaway
   worktree, commit, push back.
 - Paths are **logical git paths**: repo-relative, `/`-separated, no leading `/`, no `..`.

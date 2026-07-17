@@ -1,4 +1,4 @@
-package org.rucca.cheese.chat
+package org.rucca.cheese.chat.thread
 
 import jakarta.persistence.*
 import org.rucca.cheese.common.persistent.BaseEntity
