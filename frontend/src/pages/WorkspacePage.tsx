@@ -7,9 +7,15 @@ import {
 } from "react";
 import { useNavigate } from "react-router";
 import { ChevronDown, Settings2, Plus, FolderGit2 } from "lucide-react";
-import * as docs from "@/lib/docs";
-import type { DocNode } from "@/lib/docs";
-import { baseName, parentPath } from "@/lib/docs";
+import type { DocNode } from "@/api";
+import {
+  baseName,
+  createFolder,
+  deletePath,
+  movePath,
+  parentPath,
+} from "@/lib/docs";
+import { ntCall, teamApi } from "@/lib/ntApi";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { errMsg } from "@/hooks/useAsync";
 import { PageHeader } from "@/components/PageHeader";
@@ -49,7 +55,9 @@ export function WorkspacePage() {
       if (showSpinner) setLoading(true);
       setError(null);
       try {
-        const node = await docs.getDoc(id, "", { recursive: true });
+        const node = await ntCall(
+          teamApi().getDocument({ id, path: "", recursive: true }),
+        );
         ws.setTree(id, node);
         setTree(node);
       } catch (err) {
@@ -97,7 +105,7 @@ export function WorkspacePage() {
         : `Delete "${label}"?`;
       if (!confirm(msg)) return;
       try {
-        await docs.deletePath(teamId, node);
+        await deletePath(teamId, node);
         await load(teamId, false);
       } catch (err) {
         setError(errMsg(err));
@@ -261,16 +269,16 @@ function DocActionModal({
     try {
       if (kind === "create-folder") {
         const full = parent ? `${parent}/${clean}` : clean;
-        await docs.createFolder(teamId, full);
+        await createFolder(teamId, full);
         onClose();
         onDone([parent, full].filter(Boolean));
       } else if (kind === "rename") {
         const full = parent ? `${parent}/${clean}` : clean;
-        await docs.movePath(teamId, node, full);
+        await movePath(teamId, node, full);
         onClose();
         onDone([parent].filter(Boolean));
       } else if (kind === "move") {
-        await docs.movePath(teamId, node, clean);
+        await movePath(teamId, node, clean);
         onClose();
         onDone([parentPath(clean)].filter(Boolean));
       }

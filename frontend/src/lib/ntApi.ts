@@ -1,12 +1,25 @@
-// Client for the nt backend (teams / documents / chat), proxied at /nt (see
-// vite.config.ts). Unlike the cheese-auth backend, nt returns *raw DTOs* with no
-// {code,message,data} envelope; errors serialize as {code, message, error}.
-// Auth is a Bearer access token — the same token cheese-auth issues, which nt
-// validates against the shared jwt-secret.
+// The one configured client for the nt backend (teams / documents / chat / machines / agents),
+// proxied at /nt (see vite.config.ts).
 //
-// The access token lives in memory only. useAuth keeps this module in sync via
-// setNtAccessToken(); on a 401 we ask the registered reauth hook (a silent
+// The API surface itself is NOT written here: src/api is generated from the repo-root MAT-API.yml,
+// the same contract the backend generates its Api interfaces from, so `chatApi().listChats()` and
+// the backend's ChatApi.listChats are two ends of one definition. This module only supplies what
+// the contract cannot: where the server is, and who we are.
+//
+// nt returns *raw DTOs* with no {code,message,data} envelope; errors serialize as
+// {code, message, error}. Auth is a Bearer access token — the same token cheese-auth issues, which
+// nt validates against the shared jwt-secret. The token lives in memory only: useAuth keeps this
+// module in sync via setNtAccessToken(); on a 401 we ask the registered reauth hook (a silent
 // refresh through the httpOnly cookie) for a fresh token and retry once.
+
+import {
+  AgentApi,
+  ChatApi,
+  Configuration,
+  MachineApi,
+  ResponseError,
+  TeamApi,
+} from "@/api";
 
 const BASE = "/nt";
 
@@ -17,6 +30,14 @@ let reauthorize: (() => Promise<string | null>) | null = null;
 export function setNtAccessToken(token: string | null) {
   accessToken = token;
 }
+
+/** The current in-memory access token (for the 现场 viewer WS `?token=`). */
+export function getNtAccessToken(): string | null {
+  return accessToken;
+}
+
+/** The proxy prefix nt (and the connector endpoints under it) are served under. */
+export const NT_BASE = BASE;
 
 /** Registered once by useAuth: refresh the token silently, return the new one. */
 export function setNtReauthorize(fn: () => Promise<string | null>) {
@@ -112,6 +133,67 @@ function safeParse(text: string): unknown {
     return JSON.parse(text);
   } catch {
     return text;
+  }
+}
+
+// -- the generated client -------------------------------------------------
+//
+// One Configuration, rebuilt per call so it always carries the current token. Its middleware turns
+// nt's error body into the same NtError the hand-written helpers throw, and performs the silent
+// re-auth retry — so callers see one error type no matter which path they came through.
+
+function configuration(): Configuration {
+  return new Configuration({
+    basePath: BASE,
+    accessToken: () => accessToken ?? "",
+    middleware: [
+      {
+        post: async ({ response, url, init }) => {
+          if (response.status === 401 && reauthorize) {
+            const fresh = await reauthorize();
+            if (fresh) {
+              accessToken = fresh;
+              return fetch(url, {
+                ...init,
+                headers: { ...init.headers, Authorization: `Bearer ${fresh}` },
+              });
+            }
+          }
+          return response;
+        },
+      },
+    ],
+  });
+}
+
+export const chatApi = () => new ChatApi(configuration());
+export const teamApi = () => new TeamApi(configuration());
+export const machineApi = () => new MachineApi(configuration());
+export const agentApi = () => new AgentApi(configuration());
+
+/**
+ * The generated client throws ResponseError (which holds the raw Response); the rest of the app
+ * only knows NtError. Await this on any generated call so failures read the same everywhere —
+ * including the message nt actually sent, which is what the toasts show the user.
+ */
+export async function ntCall<T>(call: Promise<T>): Promise<T> {
+  try {
+    return await call;
+  } catch (e) {
+    if (e instanceof ResponseError) {
+      const text = await e.response.text().catch(() => "");
+      const parsed = text ? safeParse(text) : null;
+      const message =
+        parsed && typeof parsed === "object" && "message" in parsed
+          ? String((parsed as { message: unknown }).message)
+          : `HTTP ${e.response.status}`;
+      const code =
+        parsed && typeof parsed === "object" && "code" in parsed
+          ? Number((parsed as { code: unknown }).code)
+          : undefined;
+      throw new NtError(message, e.response.status, code);
+    }
+    throw e;
   }
 }
 

@@ -11,7 +11,7 @@ import {
   ArrowRightLeft,
   Trash2,
 } from "lucide-react";
-import type { DocNode } from "@/lib/docs";
+import type { DocNode } from "@/api";
 import { baseName, isKeepFile } from "@/lib/docs";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { Menu, MenuItem, MenuSeparator } from "@/components/ui/menu";

@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router";
 import { Users } from "lucide-react";
-import * as chat from "@/lib/chat";
+import { chatApi, ntCall } from "@/lib/ntApi";
 import { errMsg } from "@/hooks/useAsync";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -26,9 +26,13 @@ export function NewChatPage() {
     setError(null);
     setBusy(true);
     try {
-      const thread = await chat.createThread(
-        title.trim(),
-        memberIds.length ? memberIds : undefined,
+      const thread = await ntCall(
+        chatApi().createThread({
+          createThreadRequest: {
+            title: title.trim(),
+            memberIds: memberIds.length ? memberIds : undefined,
+          },
+        }),
       );
       navigate(`/chats/${thread.id}`, { replace: true });
     } catch (err) {

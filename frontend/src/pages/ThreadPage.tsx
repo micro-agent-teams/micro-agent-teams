@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   type FormEvent,
@@ -7,12 +8,13 @@ import {
 } from "react";
 import { useNavigate, useParams } from "react-router";
 import { MoreHorizontal } from "lucide-react";
-import * as chat from "@/lib/chat";
-import type { Message } from "@/lib/chat";
+import type { Message, ThreadMember } from "@/api";
+import { chatApi, ntCall } from "@/lib/ntApi";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsync, errMsg } from "@/hooks/useAsync";
 import { PageHeader } from "@/components/PageHeader";
-import { Avatar } from "@/components/Avatar";
+import { UserAvatar } from "@/components/UserAvatar";
+import { useAgentPresence } from "@/hooks/useAgentPresence";
 import { Textarea } from "@/components/ui/textarea";
 import { Loading, Spinner } from "@/components/ui/spinner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -29,7 +31,10 @@ export function ThreadPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const detail = useAsync(() => chat.getThread(threadId), [threadId]);
+  const detail = useAsync(
+    () => ntCall(chatApi().getThread({ id: threadId })),
+    [threadId],
+  );
 
   return (
     <div className="flex h-svh flex-col bg-[#111111]">
@@ -53,7 +58,11 @@ export function ThreadPage() {
         }
       />
 
-      <MessageList threadId={threadId} currentUserId={user?.id} />
+      <MessageList
+        threadId={threadId}
+        currentUserId={user?.id}
+        members={detail.data?.members ?? []}
+      />
     </div>
   );
 }
@@ -61,10 +70,17 @@ export function ThreadPage() {
 function MessageList({
   threadId,
   currentUserId,
+  members,
 }: {
   threadId: number;
   currentUserId?: number;
+  /** The thread's members, so each message can paint its author's name and avatar. */
+  members: ThreadMember[];
 }) {
+  const memberById = useMemo(
+    () => new Map(members.map((m) => [m.userId, m])),
+    [members],
+  );
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -75,10 +91,9 @@ function MessageList({
   useEffect(() => {
     let active = true;
     setLoading(true);
-    chat
-      .listMessages(threadId, { page_size: 200 })
+    ntCall(chatApi().listMessages({ id: threadId, pageSize: 200 }))
       .then((res) => active && setMessages(res.messages))
-      .catch((err) => active && setError(errMsg(err)))
+      .catch((err: unknown) => active && setError(errMsg(err)))
       .finally(() => active && setLoading(false));
     return () => {
       active = false;
@@ -96,7 +111,12 @@ function MessageList({
     setSending(true);
     setError(null);
     try {
-      const msg = await chat.postMessage(threadId, content);
+      const msg = await ntCall(
+        chatApi().postMessage({
+          id: threadId,
+          postMessageRequest: { content },
+        }),
+      );
       setMessages((prev) => [...prev, msg]);
       setText("");
     } catch (err) {
@@ -137,7 +157,11 @@ function MessageList({
                   {fmtSep(m.createdAt)}
                 </div>
               )}
-              <MessageRow message={m} mine={m.senderId === currentUserId} />
+              <MessageRow
+                message={m}
+                mine={m.senderId === currentUserId}
+                sender={memberById.get(m.senderId)}
+              />
             </div>
           );
         })}
@@ -171,7 +195,21 @@ function MessageList({
   );
 }
 
-function MessageRow({ message, mine }: { message: Message; mine: boolean }) {
+function MessageRow({
+  message,
+  mine,
+  sender,
+}: {
+  message: Message;
+  mine: boolean;
+  /** The thread's row for the author — it carries their name and avatar. */
+  sender?: ThreadMember;
+}) {
+  const presence = useAgentPresence();
+  const name =
+    sender?.nickname ??
+    presence.data[message.senderId]?.nickname ??
+    `user #${message.senderId}`;
   return (
     <div
       className={
@@ -180,7 +218,11 @@ function MessageRow({ message, mine }: { message: Message; mine: boolean }) {
           : "flex flex-row items-start gap-2"
       }
     >
-      <Avatar seed={message.senderId} label={`U${message.senderId}`} />
+      <UserAvatar
+        userId={message.senderId}
+        nickname={sender?.nickname}
+        avatarId={sender?.avatarId}
+      />
       <div
         className={
           mine
@@ -189,9 +231,7 @@ function MessageRow({ message, mine }: { message: Message; mine: boolean }) {
         }
       >
         {!mine && (
-          <span className="mb-0.5 px-1 text-xs text-neutral-500">
-            user #{message.senderId}
-          </span>
+          <span className="mb-0.5 px-1 text-xs text-neutral-500">{name}</span>
         )}
         <div
           className="relative rounded-lg px-3 py-2 text-sm"

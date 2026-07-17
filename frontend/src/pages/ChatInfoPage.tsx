@@ -1,12 +1,12 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router";
 import { Plus, X, Trash2 } from "lucide-react";
-import * as chat from "@/lib/chat";
-import type { Role } from "@/lib/teams";
+import type { TeamMemberRoleEnum as Role } from "@/api";
+import { chatApi, ntCall } from "@/lib/ntApi";
 import { useAuth } from "@/hooks/useAuth";
 import { useAsync, errMsg } from "@/hooks/useAsync";
 import { PageHeader } from "@/components/PageHeader";
-import { Avatar } from "@/components/Avatar";
+import { UserAvatar } from "@/components/UserAvatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
@@ -21,7 +21,10 @@ export function ChatInfoPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const detail = useAsync(() => chat.getThread(threadId), [threadId]);
+  const detail = useAsync(
+    () => ntCall(chatApi().getThread({ id: threadId })),
+    [threadId],
+  );
   const [addOpen, setAddOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -39,7 +42,7 @@ export function ChatInfoPage() {
     setError(null);
     setBusy(true);
     try {
-      await chat.removeThreadMember(threadId, userId);
+      await ntCall(chatApi().removeThreadMember({ id: threadId, userId }));
       detail.reload();
     } catch (err) {
       setError(errMsg(err));
@@ -52,7 +55,7 @@ export function ChatInfoPage() {
     if (!confirm("Dissolve this chat? This cannot be undone.")) return;
     setBusy(true);
     try {
-      await chat.dissolveThread(threadId);
+      await ntCall(chatApi().dissolveThread({ id: threadId }));
       navigate("/chats", { replace: true });
     } catch (err) {
       setError(errMsg(err));
@@ -82,9 +85,10 @@ export function ChatInfoPage() {
                   className="flex flex-col items-center gap-1"
                 >
                   <div className="relative">
-                    <Avatar
-                      seed={m.userId}
-                      label={`U${m.userId}`}
+                    <UserAvatar
+                      userId={m.userId}
+                      nickname={m.nickname}
+                      avatarId={m.avatarId}
                       className="size-14"
                     />
                     {canManage &&
@@ -175,7 +179,12 @@ function TitleRow({
     setError(null);
     setBusy(true);
     try {
-      await chat.renameThread(threadId, value.trim());
+      await ntCall(
+        chatApi().renameThread({
+          id: threadId,
+          renameThreadRequest: { title: value.trim() },
+        }),
+      );
       onRenamed();
     } catch (err) {
       setError(errMsg(err));
@@ -238,7 +247,12 @@ function AddMemberModal({
     setError(null);
     setBusy(true);
     try {
-      await chat.addThreadMember(threadId, id);
+      await ntCall(
+        chatApi().addThreadMember({
+          id: threadId,
+          addMemberRequest: { userId: id },
+        }),
+      );
       setUserId("");
       onOpenChange(false);
       onChanged();

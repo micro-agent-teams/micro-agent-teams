@@ -13,9 +13,8 @@ import {
   useState,
 } from "react";
 import { Outlet } from "react-router";
-import * as teamsApi from "@/lib/teams";
-import type { Team } from "@/lib/teams";
-import type { DocNode } from "@/lib/docs";
+import type { DocNode, Team } from "@/api";
+import { ntCall, teamApi } from "@/lib/ntApi";
 
 const TEAM_KEY = "mat.teamId";
 
@@ -71,7 +70,7 @@ export function WorkspaceProvider() {
     setTeamsLoading(true);
     setTeamsError(null);
     try {
-      const res = await teamsApi.listTeams({ page_size: 100 });
+      const res = await ntCall(teamApi().listTeams({ pageSize: 100 }));
       setTeams(res.teams);
       return res.teams;
     } catch (err) {
