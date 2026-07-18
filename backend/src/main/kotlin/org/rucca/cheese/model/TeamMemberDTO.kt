@@ -7,19 +7,19 @@ import io.swagger.v3.oas.annotations.media.Schema
 
 /**
  * @param userId
- * @param nickname
  * @param role
+ * @param nickname
  */
 data class TeamMemberDTO(
-    @Schema(example = "null", description = "")
-    @get:JsonProperty("userId")
-    val userId: kotlin.Long? = null,
+    @Schema(example = "null", required = true, description = "")
+    @get:JsonProperty("userId", required = true)
+    val userId: kotlin.Long,
+    @Schema(example = "null", required = true, description = "")
+    @get:JsonProperty("role", required = true)
+    val role: TeamMemberDTO.Role,
     @Schema(example = "null", description = "")
     @get:JsonProperty("nickname")
     val nickname: kotlin.String? = null,
-    @Schema(example = "null", description = "")
-    @get:JsonProperty("role")
-    val role: TeamMemberDTO.Role? = null,
 ) {
 
     /** Values: OWNER,ADMIN,MEMBER */

@@ -41,6 +41,9 @@ export default defineConfig({
       "/nt": {
         target: process.env.NT_BACKEND_URL ?? "http://127.0.0.1:8199",
         changeOrigin: true,
+        // ws:true so both raw WebSockets upgrade through: the 现场 viewer
+        // (/nt/machine/screen/:sid) and the STOMP chat socket (/nt/ws).
+        ws: true,
         rewrite: (path) => path.replace(/^\/nt/, ""),
       },
     },

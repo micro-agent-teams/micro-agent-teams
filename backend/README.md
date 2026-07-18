@@ -14,7 +14,7 @@ in Unix shell or the bash in Docker Desktop to start the services. `sudo` may be
 
 ### Build
 To build the project, run ```./mvnw install``` in Unix shell or PowerShell. This will generate API interfaces from the
-OpenAPI specification in ```design/API/NT-API.yml```, compile the project, and run tests.
+OpenAPI specification in ```design/API/MAT-API.yml```, compile the project, and run tests.
 
 ### Run
 After the previous step, you will find the jar file in the ```target``` directory. Run

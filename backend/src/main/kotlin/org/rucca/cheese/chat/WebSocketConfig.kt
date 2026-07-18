@@ -1,8 +1,17 @@
 /*
- *  Description: STOMP-over-WebSocket configuration. JWT authentication is
- *               handled by the handshake interceptor (reads ?token= query
- *               param); messages are published to /topic/thread/{id} by
- *               ThreadService.postMessage via SimpMessagingTemplate.
+ *  Description: STOMP-over-WebSocket configuration: the /topic broker and the /nt/ws
+ *               endpoint, whose handshake interceptor authenticates the JWT (read from
+ *               the ?token= query param). This is the chat module's WS plumbing rather
+ *               than any one feature's — it lives at the module root, not under message/,
+ *               because the broker and the endpoint are shared even though today the only
+ *               publisher is MessageService.postMessage (-> /topic/thread/{id}, via
+ *               SimpMessagingTemplate).
+ *
+ *               Careful: `@EnableWebSocketMessageBroker` here defines the application-wide
+ *               `webSocketHandlerMapping` bean. That is why ConnectorWebSocketConfig cannot
+ *               use `@EnableWebSocket` (it would define the same bean and clash) and hand-
+ *               builds its own SimpleUrlHandlerMapping instead. Removing or relocating this
+ *               annotation therefore affects the connector's raw WebSocket endpoints too.
  *
  *  Author(s):
  *      Nictheboy Li    <nictheboy@outlook.com>

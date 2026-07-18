@@ -1,6 +1,6 @@
 /*
  *  Description: Integration test for the team-document feature. Drives the
- *               /teams/{id}/docs endpoint (git-backed, no document table) through
+ *               /team/{id}/document endpoint (git-backed, no document table) through
  *               the full stack: tree / single file / history / diff via query
  *               flags, plus write / move / delete and the auth + path guards.
  *
@@ -56,7 +56,7 @@ constructor(private val mockMvc: MockMvc, private val userCreatorService: UserCr
         val response =
             mockMvc
                 .perform(
-                    post("/teams")
+                    post("/team")
                         .header("Authorization", "Bearer $ownerToken")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""{"name":"Docs Team ${floor(Math.random() * 1e10).toLong()}"}""")
@@ -65,7 +65,7 @@ constructor(private val mockMvc: MockMvc, private val userCreatorService: UserCr
         teamId = JSONObject(response.response.contentAsString).getLong("id")
     }
 
-    private fun docs() = "/teams/$teamId/docs"
+    private fun docs() = "/team/$teamId/document"
 
     private fun auth(token: String = ownerToken) =
         get(docs()).header("Authorization", "Bearer $token")

@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router";
 import { Plus, Users, Trash2 } from "lucide-react";
-import * as teams from "@/lib/teams";
-import type { Role, TeamMember } from "@/lib/teams";
+import type { TeamMember, TeamMemberRoleEnum as Role } from "@/api";
+import { ntCall, teamApi } from "@/lib/ntApi";
 import { useAuth } from "@/hooks/useAuth";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useAsync, errMsg } from "@/hooks/useAsync";
@@ -28,7 +28,10 @@ export function TeamManagePage() {
   const ws = useWorkspace();
   const { user } = useAuth();
 
-  const detail = useAsync(() => teams.getTeam(teamId), [teamId]);
+  const detail = useAsync(
+    () => ntCall(teamApi().getTeam({ id: teamId })),
+    [teamId],
+  );
   const myRole = detail.data?.members.find((m) => m.userId === user?.id)?.role;
   const canManage = myRole === "OWNER" || myRole === "ADMIN";
   const isOwner = myRole === "OWNER";
@@ -104,7 +107,12 @@ function RenameSection({
     setError(null);
     setBusy(true);
     try {
-      await teams.renameTeam(teamId, newName.trim());
+      await ntCall(
+        teamApi().renameTeam({
+          id: teamId,
+          renameTeamRequest: { name: newName.trim() },
+        }),
+      );
       onRenamed();
     } catch (err) {
       setError(errMsg(err));
@@ -245,7 +253,12 @@ function AddMemberModal({
     setError(null);
     setBusy(true);
     try {
-      await teams.addMember(teamId, id, role);
+      await ntCall(
+        teamApi().addTeamMember({
+          id: teamId,
+          addTeamMemberRequest: { userId: id, role },
+        }),
+      );
       setUserId("");
       setRole("MEMBER");
       onOpenChange(false);
@@ -345,7 +358,15 @@ function EditMemberModal({
         <Button
           disabled={busy || role === member.role}
           onClick={() =>
-            run(() => teams.changeMemberRole(teamId, member.userId, role))
+            run(() =>
+              ntCall(
+                teamApi().changeMemberRole({
+                  id: teamId,
+                  userId: member.userId,
+                  changeRoleRequest: { role },
+                }),
+              ),
+            )
           }
         >
           {busy ? <Spinner /> : "change role"}
@@ -353,7 +374,16 @@ function EditMemberModal({
         <Button
           variant="destructive"
           disabled={busy}
-          onClick={() => run(() => teams.removeMember(teamId, member.userId))}
+          onClick={() =>
+            run(() =>
+              ntCall(
+                teamApi().removeTeamMember({
+                  id: teamId,
+                  userId: member.userId,
+                }),
+              ),
+            )
+          }
         >
           <Trash2 className="size-4" /> remove from team
         </Button>
@@ -380,7 +410,7 @@ function DangerSection({
     setError(null);
     setBusy(true);
     try {
-      await teams.deleteTeam(teamId);
+      await ntCall(teamApi().deleteTeam({ id: teamId }));
       onDeleted();
     } catch (err) {
       setError(errMsg(err));

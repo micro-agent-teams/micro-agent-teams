@@ -10,10 +10,12 @@ import io.swagger.v3.oas.annotations.media.Schema
  * @param updatedAt
  */
 data class TeamDTO(
-    @Schema(example = "null", description = "") @get:JsonProperty("id") val id: kotlin.Long? = null,
-    @Schema(example = "null", description = "")
-    @get:JsonProperty("name")
-    val name: kotlin.String? = null,
+    @Schema(example = "null", required = true, description = "")
+    @get:JsonProperty("id", required = true)
+    val id: kotlin.Long,
+    @Schema(example = "null", required = true, description = "")
+    @get:JsonProperty("name", required = true)
+    val name: kotlin.String,
     @Schema(example = "null", description = "")
     @get:JsonProperty("createdAt")
     val createdAt: java.time.OffsetDateTime? = null,

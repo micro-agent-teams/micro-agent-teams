@@ -55,6 +55,11 @@ START WITH
     1 INCREMENT BY 50;
 
 CREATE
+    SEQUENCE mat.team_machine_seq
+START WITH
+    1 INCREMENT BY 50;
+
+CREATE
     SEQUENCE mat.team_member_seq
 START WITH
     1 INCREMENT BY 50;
@@ -73,6 +78,43 @@ CREATE
     SEQUENCE mat.thread_seq
 START WITH
     1 INCREMENT BY 50;
+
+CREATE
+    TABLE
+        mat.agent_screen(
+            agent_user_id BIGINT NOT NULL,
+            created_at TIMESTAMP(6) NOT NULL,
+            team_id BIGINT,
+            driver VARCHAR(32) NOT NULL,
+            sid VARCHAR(32) NOT NULL,
+            machine_id VARCHAR(64) NOT NULL,
+            session_id VARCHAR(64),
+            token VARCHAR(64) NOT NULL,
+            cwd VARCHAR(1024),
+            PRIMARY KEY(sid)
+        );
+
+CREATE
+    TABLE
+        mat.machine(
+            created_at TIMESTAMP(6) NOT NULL,
+            machine_id VARCHAR(64) NOT NULL,
+            token VARCHAR(128) NOT NULL UNIQUE,
+            name VARCHAR(255) NOT NULL,
+            PRIMARY KEY(machine_id)
+        );
+
+CREATE
+    TABLE
+        mat.machine_auth_code(
+            created_at TIMESTAMP(6) NOT NULL,
+            team_id BIGINT,
+            status VARCHAR(16) NOT NULL,
+            code VARCHAR(64) NOT NULL,
+            machine_id VARCHAR(64),
+            machine_name VARCHAR(255) NOT NULL,
+            PRIMARY KEY(code)
+        );
 
 CREATE
     TABLE
@@ -97,6 +139,22 @@ CREATE
             updated_at TIMESTAMP(6) NOT NULL,
             name VARCHAR(255) NOT NULL,
             PRIMARY KEY(id)
+        );
+
+CREATE
+    TABLE
+        mat.team_machine(
+            created_at TIMESTAMP(6) NOT NULL,
+            deleted_at TIMESTAMP(6),
+            id BIGINT NOT NULL,
+            team_id BIGINT NOT NULL,
+            updated_at TIMESTAMP(6) NOT NULL,
+            machine_id VARCHAR(64) NOT NULL,
+            PRIMARY KEY(id),
+            CONSTRAINT uq_team_machine UNIQUE(
+                machine_id,
+                team_id
+            )
         );
 
 CREATE
@@ -153,6 +211,14 @@ CREATE
         );
 
 CREATE
+    INDEX IDXgq97fo5233iohf7rnfx89ypne ON
+    mat.agent_screen(machine_id);
+
+CREATE
+    INDEX IDXoqu2lah1ibtqtc2j0j12vyr1j ON
+    mat.agent_screen(agent_user_id);
+
+CREATE
     INDEX idx_message_thread_created ON
     mat.message(
         thread_id,
@@ -162,6 +228,14 @@ CREATE
 CREATE
     INDEX IDXg2l9qqsoeuynt4r5ofdt1x2td ON
     mat.team(name);
+
+CREATE
+    INDEX IDXa6y5tmsgcryqujws87w8i5dj9 ON
+    mat.team_machine(machine_id);
+
+CREATE
+    INDEX IDX6vonaycb4y376lymvg7mlq2l8 ON
+    mat.team_machine(team_id);
 
 CREATE
     INDEX IDX5g0c914cuohcnat68yxga0pn0 ON

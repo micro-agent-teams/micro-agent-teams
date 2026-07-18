@@ -1,9 +1,9 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { Save, Settings, History as HistoryIcon, Trash2 } from "lucide-react";
-import * as docs from "@/lib/docs";
+import type { DocCommit, DocNode } from "@/api";
 import { baseName, parentPath } from "@/lib/docs";
-import type { CommitInfo } from "@/lib/docs";
+import { ntCall, teamApi } from "@/lib/ntApi";
 import { useAsync, errMsg } from "@/hooks/useAsync";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -39,8 +39,8 @@ export function FilePage() {
   const load = useAsync(
     () =>
       isNew
-        ? Promise.resolve<docs.DocNode | null>(null)
-        : docs.getDoc(teamId, path, { content: true }),
+        ? Promise.resolve<DocNode | null>(null)
+        : ntCall(teamApi().getDocument({ id: teamId, path, content: true })),
     [teamId, path, isNew],
   );
 
@@ -57,7 +57,9 @@ export function FilePage() {
     setError(null);
     setSaving(true);
     try {
-      await docs.writeDoc(teamId, path, content);
+      await ntCall(
+        teamApi().writeDocument({ id: teamId, path, body: content }),
+      );
       setSavedContent(content);
       if (isNew) {
         // Drop the ?new flag so a reload reads the now-existing file.
@@ -170,7 +172,7 @@ function fmtTime(ts: number): string {
 
 function HistoryTab({ teamId, path }: { teamId: number; path: string }) {
   const { data, error, loading } = useAsync(
-    () => docs.getDoc(teamId, path, { history: true }),
+    () => ntCall(teamApi().getDocument({ id: teamId, path, history: true })),
     [teamId, path],
   );
   const [diffSha, setDiffSha] = useState<string | null>(null);
@@ -191,7 +193,7 @@ function HistoryTab({ teamId, path }: { teamId: number; path: string }) {
       )}
       {data?.history && (
         <ul className="flex flex-col divide-y overflow-hidden rounded-lg border">
-          {data.history.map((c: CommitInfo) => (
+          {data.history.map((c: DocCommit) => (
             <li key={c.sha}>
               <button
                 type="button"
@@ -236,7 +238,7 @@ function DiffModal({
   onClose: () => void;
 }) {
   const { data, error, loading } = useAsync(
-    () => docs.getDoc(teamId, path, { diff: sha }),
+    () => ntCall(teamApi().getDocument({ id: teamId, path, diff: sha })),
     [teamId, path, sha],
   );
 
@@ -305,7 +307,13 @@ function FileSettingsModal({
     setError(null);
     setBusy(true);
     try {
-      await docs.moveDoc(teamId, path, clean);
+      await ntCall(
+        teamApi().moveDocument({
+          id: teamId,
+          path,
+          moveDocumentRequest: { newPath: clean },
+        }),
+      );
       navigate(`/teams/${teamId}/file?path=${encodeURIComponent(clean)}`, {
         replace: true,
       });
@@ -320,7 +328,7 @@ function FileSettingsModal({
     setError(null);
     setBusy(true);
     try {
-      await docs.deleteDoc(teamId, path);
+      await ntCall(teamApi().deleteDocument({ id: teamId, path }));
       const parent = parentPath(path);
       navigate(
         `/teams/${teamId}?tab=docs${parent ? `&path=${encodeURIComponent(parent)}` : ""}`,

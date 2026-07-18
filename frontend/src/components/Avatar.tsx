@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 
-// Rounded-square avatars, WeChat style. No avatar images available yet, so we
-// render a deterministic colour + an initial derived from the seed.
+// Rounded-square avatars, WeChat style. When an avatarId is given we show the real
+// image from cheese-auth (proxied at /api/avatars/:id); if it fails to load we fall
+// back to a deterministic colour + an initial derived from the seed.
 const COLORS = [
   "#4e6ef2",
   "#12b76a",
@@ -24,17 +26,43 @@ function hash(s: string): number {
   return h;
 }
 
+/** The cheese-auth avatar image URL (via the /api proxy). */
+export function avatarUrl(avatarId?: number | null): string | null {
+  return avatarId != null ? `/api/avatars/${avatarId}` : null;
+}
+
 export function Avatar({
   seed,
   label,
+  avatarId,
   className,
 }: {
   seed: number | string;
   /** Text whose first char becomes the initial; falls back to the seed. */
   label?: string;
+  /** cheese-auth avatar id; when present its image is shown (initial is the fallback). */
+  avatarId?: number | null;
   className?: string;
 }) {
+  const [failed, setFailed] = useState(false);
   const initial = (label ?? String(seed)).trim().charAt(0).toUpperCase() || "#";
+  const url = avatarUrl(avatarId);
+
+  if (url && !failed) {
+    return (
+      <img
+        src={url}
+        alt=""
+        className={cn(
+          "size-10 shrink-0 rounded-lg object-cover select-none",
+          className,
+        )}
+        onError={() => setFailed(true)}
+        aria-hidden
+      />
+    );
+  }
+
   return (
     <div
       className={cn(

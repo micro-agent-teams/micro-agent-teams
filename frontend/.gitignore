@@ -25,3 +25,6 @@ dist-ssr
 
 # TypeScript build cache
 *.tsbuildinfo
+
+# Generated from ../MAT-API.yml on every dev/build (predev/prebuild). Not committed.
+/src/api/

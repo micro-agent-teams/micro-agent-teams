@@ -1,6 +1,27 @@
 /*
- *  Description: This file implements the RolePermissionService class.
- *               It provides the permissions for different roles.
+ *  Description: This file implements the RolePermissionService class — the whole business
+ *               authorization model of this backend, in one table.
+ *
+ *               That claim is the point, and it only holds if two rules are kept absolutely:
+ *
+ *                 1. Authorization code has no business logic. Every clause below is an atomic,
+ *                    named predicate whose meaning is obvious from its name; each is registered in
+ *                    the @PostConstruct of the controller that owns the concept, and does nothing
+ *                    but turn (userId, authInfo) into one true/false fact.
+ *                 2. Business code has no authorization. No service throws ForbiddenError and no
+ *                    service filters by "may this user...". If a rule is not visible here, it does
+ *                    not exist — an auditor must never have to read a service to learn who may do
+ *                    what.
+ *
+ *               Actions are named after what the endpoint *does* ("rename-machine", "watch",
+ *               "post-note"), not after CRUD, so a row reads as the permission of a specific
+ *               endpoint rather than of a vague verb. customLogic is a boolean expression over
+ *               those predicates (&&, ||, !, parens — see CustomAuthLogics), so a rule with several
+ *               ways to be satisfied stays one readable row instead of being smeared across
+ *               several permissions.
+ *
+ *               A permission grants an action when all of its clauses match; the matrix grants it
+ *               when any permission does.
  *
  *  Author(s):
  *      Nictheboy Li    <nictheboy@outlook.com>
@@ -25,14 +46,10 @@ class RolePermissionService {
         }
     }
 
-    // The original space/team/task/ai:quota permission entries were removed along
-    // with the business modules they gated (nothing left registers their
-    // resourceType or the custom logics like "is-space-admin"/"is-team-admin" they
-    // referenced — keeping them would just be dead, misleading rules). See
-    // ~/work/ref-study/cheese-backend-nt for the full original set as a reference
-    // when writing authorization for our own modules; the auth framework itself
-    // (AuthorizationService, AuthorizationAspect, the Permission/AuthorizedResource
-    // model, custom-logic expressions) is untouched and still the pattern to follow.
+    // The original space/task/ai:quota entries were removed along with the business modules they
+    // gated. See ~/work/ref-study/cheese-backend-nt for the full original set — the auth framework
+    // itself (AuthorizationService, AuthorizationAspect, the Permission/AuthorizedResource model,
+    // custom-logic expressions) is untouched and still the pattern followed here.
     fun getAuthorizationForStandardUser(userId: IdType): Authorization {
         return Authorization(
             userId = userId,
@@ -44,116 +61,173 @@ class RolePermissionService {
                         authorizedResource = AuthorizedResource(types = listOf("ping")),
                     ),
 
-                    // -- Chat: threads ---------------------------------------------------
+                    // -- Chat: threads -------------------------------------------------
 
-                    // List my threads: any authenticated user (service query is
-                    // self-scoping to the user's own memberships anyway).
+                    // GET /chat — the query only ever returns the caller's own memberships.
+                    // POST /chat — anyone may start a group.
                     Permission(
-                        authorizedActions = listOf("enumerate"),
+                        authorizedActions = listOf("enumerate-my-chats", "create-chat"),
                         authorizedResource = AuthorizedResource(types = listOf("chat_thread")),
                     ),
-                    // Create a thread: any authenticated user.
+                    // GET /chat/{id}, GET /chat/{id}/members
                     Permission(
-                        authorizedActions = listOf("create"),
+                        authorizedActions = listOf("query-chat", "enumerate-chat-members"),
                         authorizedResource = AuthorizedResource(types = listOf("chat_thread")),
+                        customLogic = "is-thread-member",
                     ),
-                    // Get thread detail: members only.
+                    // PATCH /chat/{id}, POST|DELETE|PATCH /chat/{id}/members/...
                     Permission(
-                        authorizedActions = listOf("read"),
+                        authorizedActions =
+                            listOf(
+                                "rename-chat",
+                                "add-chat-member",
+                                "remove-chat-member",
+                                "change-chat-member-role",
+                            ),
                         authorizedResource = AuthorizedResource(types = listOf("chat_thread")),
-                        customLogic = "is_thread_member",
+                        customLogic = "is-thread-admin",
                     ),
-                    // Rename thread: admin+.
+                    // DELETE /chat/{id} — only the owner may dissolve a group.
                     Permission(
-                        authorizedActions = listOf("update"),
-                        authorizedResource = AuthorizedResource(types = listOf("chat_thread")),
-                        customLogic = "is_thread_admin",
-                    ),
-                    // Dissolve thread: owner only.
-                    Permission(
-                        authorizedActions = listOf("delete"),
+                        authorizedActions = listOf("dissolve-chat"),
                         authorizedResource = AuthorizedResource(types = listOf("chat_thread")),
                         customLogic = "owned",
                     ),
-                    // Add/remove members, change role: guarded by admin/owner custom logics.
-                    // (update action on chat_thread with is_thread_admin or is_thread_owner
-                    // — the individual operations below share this guard now.)
 
-                    // -- Chat: messages ---------------------------------------------------
+                    // -- Chat: messages ------------------------------------------------
 
-                    // List messages: thread member.
+                    // GET|POST /chat/{id}/messages. Agents post through the same rows: the
+                    // tool-door authenticates them by machine+screen token and then asks this
+                    // matrix as the agent user, so "an agent may only speak in its own groups" is
+                    // this rule, not a second one written somewhere else.
                     Permission(
-                        authorizedActions = listOf("read"),
+                        authorizedActions = listOf("enumerate-messages", "post-message"),
                         authorizedResource = AuthorizedResource(types = listOf("chat_message")),
-                        customLogic = "is_thread_member",
+                        customLogic = "is-thread-member",
                     ),
-                    // Post message: thread member.
-                    Permission(
-                        authorizedActions = listOf("create"),
-                        authorizedResource = AuthorizedResource(types = listOf("chat_message")),
-                        customLogic = "is_thread_member",
-                    ),
-                    // -- Teams --------------------------------------------------
 
-                    // List my teams: any authenticated user (the service self-scopes
-                    // to the caller's own memberships). A distinct "enumerate" action
-                    // keeps this from also satisfying the member-gated "read" below.
+                    // -- Teams ---------------------------------------------------------
+
+                    // GET /team — self-scoping. POST /team — anyone may found a team.
                     Permission(
-                        authorizedActions = listOf("enumerate"),
+                        authorizedActions = listOf("enumerate-my-teams", "create-team"),
                         authorizedResource = AuthorizedResource(types = listOf("team")),
                     ),
-                    // Create team: any authenticated user.
+                    // GET /team/{id}, GET /team/{id}/members
                     Permission(
-                        authorizedActions = listOf("create"),
+                        authorizedActions = listOf("query-team", "enumerate-team-members"),
                         authorizedResource = AuthorizedResource(types = listOf("team")),
+                        customLogic = "is-team-member",
                     ),
-                    // Read team detail: member only.
+                    // PATCH /team/{id}, the member routes, and the machine bindings. Binding a
+                    // machine to a team is a change to the team, so it is the team's admins who
+                    // may do it — plus, for an existing machine, someone who may already use it
+                    // (the model is symmetric: any team it serves may pass it on).
                     Permission(
-                        authorizedActions = listOf("read"),
+                        authorizedActions =
+                            listOf(
+                                "rename-team",
+                                "add-team-member",
+                                "remove-team-member",
+                                "change-team-member-role",
+                            ),
                         authorizedResource = AuthorizedResource(types = listOf("team")),
-                        customLogic = "is_team_member",
+                        customLogic = "is-team-admin",
                     ),
-                    // Rename/update team: admin+.
                     Permission(
-                        authorizedActions = listOf("update"),
+                        authorizedActions = listOf("bind-machine-to-team"),
                         authorizedResource = AuthorizedResource(types = listOf("team")),
-                        customLogic = "is_team_admin",
+                        customLogic = "is-team-member && can-access-bound-machine",
                     ),
-                    // Delete team: owner only. Uses the built-in "owned" predicate,
-                    // backed by the "team" owner-id provider registered in TeamService
-                    // (which resolves the OWNER member row). There is no separate
-                    // is_team_owner custom logic.
                     Permission(
-                        authorizedActions = listOf("delete"),
+                        authorizedActions = listOf("unbind-machine-from-team"),
+                        authorizedResource = AuthorizedResource(types = listOf("team")),
+                        customLogic = "can-access-bound-machine",
+                    ),
+                    // DELETE /team/{id}
+                    Permission(
+                        authorizedActions = listOf("delete-team"),
                         authorizedResource = AuthorizedResource(types = listOf("team")),
                         customLogic = "owned",
                     ),
 
-                    // -- Documents (team-scoped) -------------------------------
+                    // -- Team documents (the team's git tree) --------------------------
 
-                    // List documents: team member.
+                    // GET|PUT|PATCH|DELETE /team/{id}/document
                     Permission(
-                        authorizedActions = listOf("read"),
+                        authorizedActions =
+                            listOf(
+                                "read-document",
+                                "write-document",
+                                "move-document",
+                                "delete-document",
+                            ),
                         authorizedResource = AuthorizedResource(types = listOf("team_document")),
-                        customLogic = "is_team_member",
+                        customLogic = "is-team-member",
                     ),
-                    // Create document: team member.
+
+                    // -- Machines ------------------------------------------------------
+
+                    // POST /machine/enroll/approve — you may only enrol a machine into teams you
+                    // belong to. (start/poll are @NoAuth: the machine has no identity yet.)
                     Permission(
-                        authorizedActions = listOf("create"),
-                        authorizedResource = AuthorizedResource(types = listOf("team_document")),
-                        customLogic = "is_team_member",
+                        authorizedActions = listOf("approve-enrollment"),
+                        authorizedResource = AuthorizedResource(types = listOf("machine")),
+                        customLogic = "is-member-of-every-enrolled-team",
                     ),
-                    // Update document: team member.
+                    // GET /machine — either scoped to a team you are in, or unscoped, which by
+                    // definition means "the machines of my own teams" and so needs no further
+                    // right. Slicing machines a new way must add a filter and, if it widens what
+                    // is reachable, a clause here.
                     Permission(
-                        authorizedActions = listOf("update"),
-                        authorizedResource = AuthorizedResource(types = listOf("team_document")),
-                        customLogic = "is_team_member",
+                        authorizedActions = listOf("enumerate-machines"),
+                        authorizedResource = AuthorizedResource(types = listOf("machine")),
+                        customLogic = "is-member-of-queried-team || is-enumerating-own-machines",
                     ),
-                    // Delete document: team member.
+                    // GET|PATCH|DELETE /machine/{id}. The model is owner-less and symmetric:
+                    // every member of every team a machine serves has equal, full rights over it.
                     Permission(
-                        authorizedActions = listOf("delete"),
-                        authorizedResource = AuthorizedResource(types = listOf("team_document")),
-                        customLogic = "is_team_member",
+                        authorizedActions =
+                            listOf("query-machine", "rename-machine", "forget-machine"),
+                        authorizedResource = AuthorizedResource(types = listOf("machine")),
+                        customLogic = "can-access-machine",
+                    ),
+
+                    // -- 现场: watching a screen on a machine ---------------------------
+
+                    // The whole rule, in one place: you may watch a screen if you may use the
+                    // machine it runs on, or if it is an agent you share a group with. The second
+                    // clause is false for a screen that is not an agent's (a shared shell), which
+                    // is how an application widens access to its own screens without touching
+                    // anyone else's.
+                    Permission(
+                        authorizedActions = listOf("watch"),
+                        authorizedResource = AuthorizedResource(types = listOf("machine_screen")),
+                        customLogic = "can-access-screen-machine || shares-group-with-screen-agent",
+                    ),
+
+                    // -- Agents --------------------------------------------------------
+
+                    // GET /agent — open to any authenticated user because it backs every avatar,
+                    // and it discloses nothing privileged: the live screen id is attached per
+                    // agent only where the `watch` row above already allows it.
+                    Permission(
+                        authorizedActions = listOf("enumerate-agents"),
+                        authorizedResource = AuthorizedResource(types = listOf("agent")),
+                    ),
+                    // POST /agent — you must belong to the team the agent will work for *and* be
+                    // allowed to use the machine it will run on. Two separate facts, so neither
+                    // can quietly satisfy the other.
+                    Permission(
+                        authorizedActions = listOf("open-agent"),
+                        authorizedResource = AuthorizedResource(types = listOf("agent")),
+                        customLogic = "is-member-of-target-team && can-access-target-machine",
+                    ),
+                    // DELETE /agent/{userId}
+                    Permission(
+                        authorizedActions = listOf("close-agent"),
+                        authorizedResource = AuthorizedResource(types = listOf("agent")),
+                        customLogic = "is-member-of-agent-team",
                     ),
                 ),
         )

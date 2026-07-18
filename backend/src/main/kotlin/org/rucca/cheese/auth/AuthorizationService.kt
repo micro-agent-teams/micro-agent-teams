@@ -54,17 +54,22 @@ class AuthorizationService(
         }
     }
 
+    /** The caller's authorization, read from the request in flight. */
+    fun currentAuthorization(): Authorization {
+        val token: String? =
+            (RequestContextHolder.currentRequestAttributes() as ServletRequestAttributes)
+                .request
+                .getHeader("Authorization")
+        return verify(token)
+    }
+
     fun audit(
         action: String,
         resourceType: String,
         resourceId: IdType?,
         authInfo: Map<String, Any> = emptyMap(),
     ) {
-        val token: String? =
-            (RequestContextHolder.currentRequestAttributes() as ServletRequestAttributes)
-                .request
-                .getHeader("Authorization")
-        audit(token, action, resourceType, resourceId, authInfo)
+        audit(currentAuthorization(), action, resourceType, resourceId, authInfo)
     }
 
     fun audit(
@@ -84,6 +89,32 @@ class AuthorizationService(
         resourceId: IdType?,
         authInfo: Map<String, Any> = emptyMap(),
     ) {
+        if (allows(authorization, action, resourceType, resourceId, authInfo)) return
+        if (applicationConfig.warnAuditFailure)
+            logger.warn(
+                "Operation denied: '$action' on resource (resourceType: '$resourceType', resourceId: $resourceId, authInfo: $authInfo)." +
+                    " UserId: ${authorization.userId}. Authorization: $authorization"
+            )
+        throw PermissionDeniedError(action, resourceType, resourceId, authInfo)
+    }
+
+    /**
+     * Whether the permission matrix allows [action] — the same evaluation [audit] gates on, but
+     * answered instead of thrown, so a caller can *filter* by permission rather than only refuse.
+     * (`listAgents` uses it to include a screen id only for a viewer allowed to watch it; wrapping
+     * `audit` in try/catch instead would spam the denial log for the ordinary case.)
+     *
+     * A permission grants the action when every one of its clauses matches, and the matrix grants
+     * it when *any* permission does — so several rows sharing an action/resourceType and differing
+     * only in [Permission.customLogic] read as an OR of those predicates.
+     */
+    fun allows(
+        authorization: Authorization,
+        action: String,
+        resourceType: String,
+        resourceId: IdType?,
+        authInfo: Map<String, Any> = emptyMap(),
+    ): Boolean {
         val userId = authorization.userId
         val ownerIdGetter =
             if (resourceId != null) ownerIds.getOwnerIdGetter(resourceType, resourceId) else null
@@ -124,14 +155,9 @@ class AuthorizationService(
                     )
                 if (!result) continue
             }
-            return
+            return true
         }
-        if (applicationConfig.warnAuditFailure)
-            logger.warn(
-                "Operation denied: '$action' on resource (resourceType: '$resourceType', resourceId: $resourceId, authInfo: $authInfo)." +
-                    " UserId: $userId. Authorization: $authorization"
-            )
-        throw PermissionDeniedError(action, resourceType, resourceId, authInfo)
+        return false
     }
 
     fun verify(token: String?): Authorization {
